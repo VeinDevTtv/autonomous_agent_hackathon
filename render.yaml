@@ -38,7 +38,7 @@ services:
     region: oregon
     plan: starter
     rootDir: .
-    buildCommand: npm install && npm run build
+    buildCommand: npm install && npm run build:worker
     startCommand: npm run worker
     autoDeploy: true
     envVars:

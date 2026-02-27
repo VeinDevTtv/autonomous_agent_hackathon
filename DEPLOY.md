@@ -43,3 +43,8 @@ This app runs as a **Render Web Service** (Next.js) plus a **Render Background W
 
 - **Web Service**: Serves the Next.js UI and API routes (job creation, status, CSV download). No long-running Gemini/Neo4j/Tavily calls in request/response.
 - **Background Worker**: Polls Supabase for pending ingestion, retrieval, and analysis jobs; runs the full pipeline (Retrieval → Extraction → Neo4j → Reasoning → Tavily → Execution) and writes results back to Supabase.
+
+## Render build troubleshooting
+
+- **NODE_ENV**: Next.js expects `NODE_ENV` to be `development` or `production`. In the Render dashboard, either leave `NODE_ENV` unset (Render sets it to `production` for builds) or set it explicitly to `production`. Do not use custom values (e.g. `staging`, `test`) for the build or you may see prerender/useContext errors.
+- **If the web build still fails** (e.g. prerender/useContext errors): Use a clean install for reproducibility—e.g. set the web service build command to `npm ci && npm run build` and ensure `package-lock.json` is committed. This avoids duplicate or nested React from inconsistent installs.
