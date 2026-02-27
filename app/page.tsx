@@ -51,6 +51,14 @@ type ClauseComparison = {
   analysis: string;
 };
 
+type VendorRiskEnrichment = {
+  vendor_id: string;
+  vendor_name: string;
+  risk_level: string;
+  background_summary: string;
+  risk_reasons: string[];
+};
+
 type AnalysisResult = {
   extraction: {
     vendors: Array<{ id: string; name: string }>;
@@ -65,6 +73,13 @@ type AnalysisResult = {
     clauseComparisons: ClauseComparison[];
     actionPlan: string;
   };
+  execution?: {
+    csvUrl: string;
+    markdownReport: string;
+    emailDraft: string;
+    jsonResult: object;
+  };
+  vendor_risk_enrichment?: VendorRiskEnrichment[];
 };
 
 type AnalysisJobState = {
@@ -619,6 +634,98 @@ export default function HomePage() {
             <p className="status-meta">No action plan generated.</p>
           )}
         </div>
+
+        {/* Phase 4: Execution outputs */}
+        {result.execution ? (
+          <div>
+            <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
+              <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+                📥 Download &amp; Report
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
+                {result.execution.csvUrl && (
+                  <a
+                    href={result.execution.csvUrl}
+                    className="button-primary"
+                    style={{ fontSize: "0.875rem" }}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Download CSV
+                  </a>
+                )}
+              </div>
+            </div>
+
+            {result.execution.markdownReport && (
+              <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
+                <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+                  📄 Markdown Report
+                </div>
+                <div style={{ fontSize: "0.875rem", lineHeight: 1.6, whiteSpace: "pre-wrap", color: "rgba(255,255,255,0.85)" }}>
+                  {result.execution.markdownReport.split("\n").map((line, i) => (
+                    <span key={i}>
+                      {line}
+                      {"\n"}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {result.execution.emailDraft && (
+              <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
+                <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+                  ✉️ Email Draft
+                </div>
+                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "0.875rem", margin: 0, padding: "0.75rem", background: "rgba(255,255,255,0.04)", borderRadius: "0.375rem", color: "rgba(255,255,255,0.9)" }}>
+                  {result.execution.emailDraft}
+                </pre>
+                <button
+                  type="button"
+                  className="button-primary"
+                  style={{ marginTop: "0.75rem", fontSize: "0.875rem" }}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(result.execution!.emailDraft);
+                  }}
+                >
+                  Copy to clipboard
+                </button>
+              </div>
+            )}
+
+            {(result.vendor_risk_enrichment?.length ?? 0) > 0 && (
+              <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
+                <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+                  🔍 External Vendor Risk Insights (Tavily)
+                </div>
+                <p className="status-meta" style={{ marginBottom: "0.75rem" }}>
+                  External web research via Tavily; not from your documents.
+                </p>
+                <div className="stack-tight">
+                  {result.vendor_risk_enrichment!.map((v, idx) => (
+                    <div key={idx} style={{ padding: "0.75rem", background: "rgba(255,255,255,0.04)", borderRadius: "0.375rem", borderLeft: "3px solid rgba(129,140,248,0.5)" }}>
+                      <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>{v.vendor_name}</div>
+                      <span className="chip chip-pill" style={{ marginBottom: "0.375rem" }}>
+                        Risk: {v.risk_level}
+                      </span>
+                      {v.background_summary && (
+                        <p className="status-meta" style={{ margin: "0.375rem 0", lineHeight: 1.5 }}>{v.background_summary}</p>
+                      )}
+                      {v.risk_reasons?.length > 0 && (
+                        <ul style={{ margin: "0.25rem 0 0", paddingLeft: "1.25rem", fontSize: "0.8rem", color: "rgba(255,255,255,0.7)" }}>
+                          {v.risk_reasons.slice(0, 5).map((r, i) => (
+                            <li key={i}>{r}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
     );
   };
@@ -869,7 +976,7 @@ export default function HomePage() {
                 ⏳ Analysis job {analysisJob.jobId?.slice(0, 8)}... — <strong>{analysisJob.status}</strong>
               </p>
               <p className="status-meta">
-                Running pipeline: Retrieval → Extraction → Neo4j → Reasoning. This may take a moment...
+                Running pipeline: Retrieval → Extraction → Neo4j → Reasoning → Tavily → Execution. This may take a moment...
               </p>
             </div>
           )}

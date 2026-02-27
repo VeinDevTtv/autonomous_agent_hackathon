@@ -4,10 +4,17 @@ import { runRetrievalAgent } from "../lib/agents/retrievalAgent";
 import { runExtractionAgent } from "../lib/agents/extractionAgent";
 import { persistExtractionToNeo4j } from "../lib/agents/persistExtraction";
 import { runReasoningAgent } from "../lib/agents/reasoningAgent";
+import { enrichVendors } from "../lib/agents/tavilyEnrichment";
+import {
+  runExecutionAgent,
+  buildExecutionOutput,
+} from "../lib/agents/executionAgent";
 import {
   persistIngestionOutput,
   markDocumentError,
 } from "../lib/agents/persistIngestion";
+
+const REPORTS_BUCKET = "reports";
 
 const MAX_BATCH = 5;
 const MAX_RETRIEVAL_JOBS = 3;
@@ -161,7 +168,7 @@ export async function runRetrievalForPendingJobs() {
 }
 
 /**
- * Phase 3: Full analysis pipeline — Retrieval → Extraction → Neo4j Write → Reasoning.
+ * Phase 3+4: Full analysis pipeline — Retrieval → Extraction → Neo4j → Reasoning → Tavily → Execution.
  * Picks up jobs with type='analysis' and status='pending'.
  */
 export async function runAnalysisForPendingJobs() {
@@ -202,34 +209,77 @@ export async function runAnalysisForPendingJobs() {
       console.log(`[analysis] Starting pipeline for job ${jobId}`);
 
       // Step 1: Retrieval
-      console.log(`[analysis] Step 1/4: Retrieval`);
+      console.log(`[analysis] Step 1/6: Retrieval`);
       const retrievalOutput = await runRetrievalAgent({
         intent,
         documentIds: payload.documentIds,
       });
 
       // Step 2: Extraction
-      console.log(`[analysis] Step 2/4: Extraction`);
+      console.log(`[analysis] Step 2/6: Extraction`);
       const extractionOutput = await runExtractionAgent({
         intent,
         relevantChunks: retrievalOutput.relevantChunks,
       });
 
       // Step 3: Neo4j Write
-      console.log(`[analysis] Step 3/4: Neo4j Write`);
+      console.log(`[analysis] Step 3/6: Neo4j Write`);
       await persistExtractionToNeo4j(extractionOutput, jobId);
 
       // Step 4: Reasoning
-      console.log(`[analysis] Step 4/4: Reasoning`);
+      console.log(`[analysis] Step 4/6: Reasoning`);
       const reasoningOutput = await runReasoningAgent({
         intent,
         extraction: extractionOutput,
       });
 
-      // Store combined result
+      // Step 5: Tavily enrichment (once per unique vendor; cache 24h)
+      let vendorRiskEnrichment: Awaited<ReturnType<typeof enrichVendors>> = [];
+      try {
+        console.log(`[analysis] Step 5/6: Tavily enrichment`);
+        if (extractionOutput.vendors.length > 0) {
+          vendorRiskEnrichment = await enrichVendors(extractionOutput.vendors);
+          console.log(`[analysis] Tavily: ${vendorRiskEnrichment.length} vendor(s) enriched`);
+        }
+      } catch (tavilyErr) {
+        console.warn("[analysis] Tavily enrichment failed, continuing without", tavilyErr);
+      }
+
+      // Step 6: Execution (CSV, Markdown, email, JSON)
+      console.log(`[analysis] Step 6/6: Execution`);
+      const rawExecution = await runExecutionAgent({
+        intent,
+        reasoning: reasoningOutput,
+        extraction: extractionOutput,
+        vendorRiskEnrichment,
+      });
+
+      // Upload CSV to storage
+      const csvStoragePath = `${jobId}/report.csv`;
+      const { error: uploadError } = await supabase.storage
+        .from(REPORTS_BUCKET)
+        .upload(csvStoragePath, rawExecution.csvContent, {
+          contentType: "text/csv",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("[analysis] CSV upload failed", uploadError.message);
+        throw new Error(`CSV upload failed: ${uploadError.message}`);
+      }
+
+      const csvUrl = `/api/jobs/${jobId}/download/csv`;
+      const execution = buildExecutionOutput(rawExecution, csvUrl);
+      const executionWithPath = {
+        ...execution,
+        csvStoragePath,
+      };
+
       const combinedResult = {
         extraction: extractionOutput,
         reasoning: reasoningOutput,
+        execution: executionWithPath,
+        ...(vendorRiskEnrichment.length > 0 && { vendor_risk_enrichment: vendorRiskEnrichment }),
       };
 
       const { error: resultError } = await supabase

@@ -10,6 +10,14 @@ import type {
 
 const MODEL = "gemini-3.1-pro-preview";
 
+/** Convert Neo4j driver value to JSON-serializable primitive (handles Integer). */
+function toPrimitive(value: unknown): string | number | null | undefined {
+    if (value == null) return value as null | undefined;
+    const v = value as { toNumber?: () => number };
+    if (typeof v.toNumber === "function") return v.toNumber();
+    return value as string | number;
+}
+
 /**
  * Query Neo4j for aggregated vendor data, or fall back to extraction-only analysis.
  */
@@ -48,12 +56,15 @@ async function getGraphContext(input: ReasoningAgentInput): Promise<string> {
 
         context += "Vendor Invoice Totals:\n";
         for (const rec of vendorTotals.records) {
-            context += `- ${rec.get("vendor")}: ${rec.get("currency") ?? "USD"} ${rec.get("total")} (${rec.get("count")} invoices)\n`;
+            const total = toPrimitive(rec.get("total"));
+            const count = toPrimitive(rec.get("count"));
+            context += `- ${rec.get("vendor")}: ${rec.get("currency") ?? "USD"} ${total} (${count} invoices)\n`;
         }
 
         context += "\nHigh-Value Invoices (>$5,000):\n";
         for (const rec of flagged.records) {
-            context += `- Invoice #${rec.get("number")} from ${rec.get("vendor")}: $${rec.get("amount")}\n`;
+            const amount = toPrimitive(rec.get("amount"));
+            context += `- Invoice #${rec.get("number")} from ${rec.get("vendor")}: $${amount}\n`;
         }
 
         context += "\nClauses:\n";

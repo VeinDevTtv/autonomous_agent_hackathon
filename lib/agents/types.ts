@@ -135,3 +135,49 @@ export interface ReasoningAgentOutput {
   clauseComparisons: ClauseComparison[];
   actionPlan: string;
 }
+
+// --- Phase 4: Tavily & Execution ---
+
+/** Structured vendor risk enrichment from Tavily (per Tavily skill JSON format). */
+export interface StructuredVendorRisk {
+  vendor_id: string;
+  vendor_name: string;
+  source: "tavily";
+  last_refreshed_at: string;
+  background_summary: string;
+  risk_level: "low" | "medium" | "high" | "unknown";
+  risk_reasons: string[];
+  fraud_signals: Array<{
+    title: string;
+    description: string;
+    severity: "low" | "medium" | "high";
+    source_url?: string;
+  }>;
+  legal_issues: Array<{
+    title: string;
+    description: string;
+    status: "active" | "resolved" | "alleged";
+    source_url?: string;
+  }>;
+  other_indicators: Array<{
+    category: string;
+    description: string;
+    source_url?: string;
+  }>;
+  notes: string;
+}
+
+// Execution Agent
+export interface ExecutionAgentInput {
+  intent: string;
+  reasoning: ReasoningAgentOutput;
+  extraction: ExtractionAgentOutput;
+  vendorRiskEnrichment?: StructuredVendorRisk[];
+}
+
+export interface ExecutionAgentOutput {
+  csvUrl: string;
+  markdownReport: string;
+  emailDraft: string;
+  jsonResult: object;
+}
