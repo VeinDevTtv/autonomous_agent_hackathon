@@ -1,5 +1,8 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+export const prerender = false;
+
 export default function GlobalError({
   error,
   reset,
