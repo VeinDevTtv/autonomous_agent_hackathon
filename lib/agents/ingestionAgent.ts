@@ -12,20 +12,48 @@ const TEXT_MODEL = "gemini-2.0-flash";
 const EMBEDDING_MODEL = "gemini-embedding-001";
 
 function normalizeText(raw: string): string {
-  return raw.replace(/\s+/g, " ").trim();
+  return raw.replace(/[ \t]+/g, " ").replace(/\n{3,}/g, "\n\n").trim();
 }
 
-function chunkText(text: string, maxChars = 1500, overlap = 200): string[] {
+/**
+ * Split text into chunks of roughly maxChars with overlap.
+ * Tries to respect paragraph / line boundaries to keep semantic units intact.
+ */
+function chunkText(text: string, maxChars = 2800, overlap = 500): string[] {
   if (text.length <= maxChars) return [text];
+
   const chunks: string[] = [];
   let start = 0;
+
   while (start < text.length) {
-    const end = Math.min(start + maxChars, text.length);
-    chunks.push(text.slice(start, end));
-    if (end === text.length) break;
-    start = end - overlap;
+    let end = Math.min(start + maxChars, text.length);
+
+    // If not at the very end, try to break on a semantic boundary
+    if (end < text.length) {
+      const window = text.slice(start, end);
+
+      // Prefer paragraph break
+      const lastParaBreak = window.lastIndexOf("\n\n");
+      if (lastParaBreak > maxChars * 0.3) {
+        end = start + lastParaBreak + 2; // include the \n\n
+      } else {
+        // Fall back to line break
+        const lastLineBreak = window.lastIndexOf("\n");
+        if (lastLineBreak > maxChars * 0.3) {
+          end = start + lastLineBreak + 1;
+        }
+        // Otherwise fall back to character-level split at maxChars
+      }
+    }
+
+    chunks.push(text.slice(start, end).trim());
+
+    if (end >= text.length) break;
+    // Overlap: step back so next chunk starts `overlap` chars before `end`
+    start = Math.max(end - overlap, start + 1);
   }
-  return chunks;
+
+  return chunks.filter((c) => c.length > 0);
 }
 
 export async function runIngestionAgent(
@@ -50,28 +78,6 @@ export async function runIngestionAgent(
   let fullText: string;
 
   if (input.mimeType.startsWith("text/")) {
-    // #region agent log
-    void fetch(
-      "http://127.0.0.1:7518/ingest/eed14813-954a-4107-9a12-1313307b9e8f",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Debug-Session-Id": "ddfad8",
-        },
-        body: JSON.stringify({
-          sessionId: "ddfad8",
-          runId: "phase1-validation",
-          hypothesisId: "H2",
-          location: "lib/agents/ingestionAgent.ts:40",
-          message: "Using text-only ingestion path",
-          data: { mimeType: input.mimeType },
-          timestamp: Date.now(),
-        }),
-      },
-    ).catch(() => { });
-    // #endregion agent log
-
     const decoder = new TextDecoder("utf-8");
     fullText = normalizeText(decoder.decode(bytes));
   } else {
@@ -107,6 +113,10 @@ export async function runIngestionAgent(
 
   const segments = chunkText(fullText);
 
+  console.log(
+    `[ingestion] Document ${input.documentId}: ${fullText.length} chars → ${segments.length} chunks`,
+  );
+
   const embeddingResponse = await gemini.models.embedContent({
     model: EMBEDDING_MODEL,
     contents: segments,
@@ -121,6 +131,7 @@ export async function runIngestionAgent(
     id: randomUUID(),
     text: segment,
     embedding: embeddings[index].values ?? [],
+    chunkIndex: index,
   }));
 
   return {

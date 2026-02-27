@@ -9,6 +9,35 @@ const EMBEDDING_MODEL = "gemini-embedding-001";
 const EXPECTED_EMBEDDING_DIMENSION = 3072;
 const MATCH_COUNT = 10;
 
+/**
+ * Log similarity score distribution for debugging.
+ */
+function logSimilarityDistribution(similarities: number[]): void {
+  if (similarities.length === 0) {
+    console.log("[retrieval] No chunks returned — nothing to log.");
+    return;
+  }
+
+  const sorted = [...similarities].sort((a, b) => a - b);
+  const min = sorted[0];
+  const max = sorted[sorted.length - 1];
+  const mean = sorted.reduce((s, v) => s + v, 0) / sorted.length;
+  const mid = Math.floor(sorted.length / 2);
+  const median =
+    sorted.length % 2 === 0
+      ? (sorted[mid - 1] + sorted[mid]) / 2
+      : sorted[mid];
+
+  console.log(
+    `[retrieval] Similarity distribution (n=${sorted.length}): ` +
+    `min=${min.toFixed(4)} max=${max.toFixed(4)} ` +
+    `mean=${mean.toFixed(4)} median=${median.toFixed(4)}`,
+  );
+  console.log(
+    `[retrieval] All scores: [${sorted.map((s) => s.toFixed(4)).join(", ")}]`,
+  );
+}
+
 export async function runRetrievalAgent(
   input: RetrievalAgentInput,
 ): Promise<RetrievalAgentOutput> {
@@ -56,6 +85,7 @@ export async function runRetrievalAgent(
     id: string;
     document_id: string;
     chunk_id: string;
+    chunk_index: number;
     text: string;
     similarity: number;
   };
@@ -67,10 +97,18 @@ export async function runRetrievalAgent(
     list = list.filter((row) => idSet.has(row.document_id));
   }
 
+  // Log similarity distribution to worker logs for debugging
+  logSimilarityDistribution(list.map((r) => r.similarity));
+
+  const debug = input.debug === true;
+
   const relevantChunks = list.map((row) => ({
     chunkId: row.chunk_id,
     text: row.text,
     similarity: row.similarity,
+    ...(debug
+      ? { documentId: row.document_id, chunkIndex: row.chunk_index }
+      : {}),
   }));
 
   return { relevantChunks };

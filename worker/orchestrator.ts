@@ -1,6 +1,9 @@
 import { getServiceSupabaseClient } from "../lib/supabaseClient";
 import { runIngestionAgent } from "../lib/agents/ingestionAgent";
 import { runRetrievalAgent } from "../lib/agents/retrievalAgent";
+import { runExtractionAgent } from "../lib/agents/extractionAgent";
+import { persistExtractionToNeo4j } from "../lib/agents/persistExtraction";
+import { runReasoningAgent } from "../lib/agents/reasoningAgent";
 import {
   persistIngestionOutput,
   markDocumentError,
@@ -8,6 +11,7 @@ import {
 
 const MAX_BATCH = 5;
 const MAX_RETRIEVAL_JOBS = 3;
+const MAX_ANALYSIS_JOBS = 2;
 
 export async function runIngestionForPendingDocuments() {
   const supabase = getServiceSupabaseClient();
@@ -103,7 +107,7 @@ export async function runRetrievalForPendingJobs() {
 
   for (const job of pending) {
     const jobId = job.id as string;
-    const payload = (job.payload as { intent: string; documentIds?: string[] }) ?? {};
+    const payload = (job.payload as { intent: string; documentIds?: string[]; debug?: boolean }) ?? {};
 
     try {
       const { error: updateError } = await supabase
@@ -122,6 +126,7 @@ export async function runRetrievalForPendingJobs() {
       const output = await runRetrievalAgent({
         intent: payload.intent ?? "",
         documentIds: payload.documentIds,
+        debug: payload.debug,
       });
 
       const { error: resultError } = await supabase
@@ -155,3 +160,107 @@ export async function runRetrievalForPendingJobs() {
   }
 }
 
+/**
+ * Phase 3: Full analysis pipeline — Retrieval → Extraction → Neo4j Write → Reasoning.
+ * Picks up jobs with type='analysis' and status='pending'.
+ */
+export async function runAnalysisForPendingJobs() {
+  const supabase = getServiceSupabaseClient();
+
+  const { data: pending, error } = await supabase
+    .from("jobs")
+    .select("id, payload")
+    .eq("type", "analysis")
+    .eq("status", "pending")
+    .order("created_at", { ascending: true })
+    .limit(MAX_ANALYSIS_JOBS);
+
+  if (error) {
+    console.error("Failed to fetch pending analysis jobs", error.message);
+    return;
+  }
+
+  if (!pending || pending.length === 0) {
+    return;
+  }
+
+  for (const job of pending) {
+    const jobId = job.id as string;
+    const payload = (job.payload as { intent: string; documentIds?: string[] }) ?? {};
+    const intent = payload.intent ?? "";
+
+    try {
+      // Mark as processing
+      await supabase
+        .from("jobs")
+        .update({
+          status: "processing",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+
+      console.log(`[analysis] Starting pipeline for job ${jobId}`);
+
+      // Step 1: Retrieval
+      console.log(`[analysis] Step 1/4: Retrieval`);
+      const retrievalOutput = await runRetrievalAgent({
+        intent,
+        documentIds: payload.documentIds,
+      });
+
+      // Step 2: Extraction
+      console.log(`[analysis] Step 2/4: Extraction`);
+      const extractionOutput = await runExtractionAgent({
+        intent,
+        relevantChunks: retrievalOutput.relevantChunks,
+      });
+
+      // Step 3: Neo4j Write
+      console.log(`[analysis] Step 3/4: Neo4j Write`);
+      await persistExtractionToNeo4j(extractionOutput, jobId);
+
+      // Step 4: Reasoning
+      console.log(`[analysis] Step 4/4: Reasoning`);
+      const reasoningOutput = await runReasoningAgent({
+        intent,
+        extraction: extractionOutput,
+      });
+
+      // Store combined result
+      const combinedResult = {
+        extraction: extractionOutput,
+        reasoning: reasoningOutput,
+      };
+
+      const { error: resultError } = await supabase
+        .from("jobs")
+        .update({
+          status: "completed",
+          result: combinedResult,
+          error: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+
+      if (resultError) {
+        console.error("Failed to persist analysis result", resultError.message);
+      }
+
+      console.log(`[analysis] Job ${jobId} completed successfully`);
+    } catch (analysisError) {
+      const message =
+        analysisError instanceof Error
+          ? analysisError.message
+          : "Unknown analysis error";
+      console.error("[analysis] Error", { jobId, message });
+      await supabase
+        .from("jobs")
+        .update({
+          status: "failed",
+          error: message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", jobId);
+    }
+  }
+}

@@ -27,6 +27,53 @@ type RetrievalJobState = {
   error: string | null;
 };
 
+// Phase 3 types
+type AnalysisJobStatus = "pending" | "processing" | "completed" | "failed";
+
+type VendorTotal = {
+  vendorName: string;
+  totalAmount: number;
+  currency: string;
+  invoiceCount: number;
+};
+
+type FlaggedInvoice = {
+  invoiceId: string;
+  number: string;
+  vendorName: string;
+  amount: number;
+  reason: string;
+};
+
+type ClauseComparison = {
+  clauseType: string;
+  clauses: Array<{ contractTitle: string; text: string }>;
+  analysis: string;
+};
+
+type AnalysisResult = {
+  extraction: {
+    vendors: Array<{ id: string; name: string }>;
+    invoices: Array<{ id: string; number: string; vendorName: string; amount: number; currency: string; date: string }>;
+    contracts: Array<{ id: string; title: string; parties: string[] }>;
+    clauses: Array<{ id: string; type: string; text: string }>;
+    amounts: Array<{ id: string; value: number; currency: string; context: string }>;
+  };
+  reasoning: {
+    totalsByVendor: VendorTotal[];
+    flaggedInvoices: FlaggedInvoice[];
+    clauseComparisons: ClauseComparison[];
+    actionPlan: string;
+  };
+};
+
+type AnalysisJobState = {
+  jobId: string | null;
+  status: AnalysisJobStatus | null;
+  result: AnalysisResult | null;
+  error: string | null;
+};
+
 const PENDING_DOC_STATUSES: UploadStatus[] = ["uploaded", "uploading", "ingesting"];
 
 const VALID_STATUSES: UploadStatus[] = [
@@ -59,6 +106,16 @@ export default function HomePage() {
     error: null,
   });
   const [isRetrievalSubmitting, setIsRetrievalSubmitting] = useState(false);
+
+  // Phase 3 state
+  const [analysisIntent, setAnalysisIntent] = useState("");
+  const [analysisJob, setAnalysisJob] = useState<AnalysisJobState>({
+    jobId: null,
+    status: null,
+    result: null,
+    error: null,
+  });
+  const [isAnalysisSubmitting, setIsAnalysisSubmitting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -147,6 +204,35 @@ export default function HomePage() {
 
     return () => clearInterval(interval);
   }, [retrievalJob.jobId, retrievalJob.status]);
+
+  // Phase 3: Poll analysis job
+  useEffect(() => {
+    const jobId = analysisJob.jobId;
+    const status = analysisJob.status;
+    if (!jobId || !status || status === "completed" || status === "failed") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/jobs/${jobId}`);
+        if (!res.ok) return;
+        const data = (await res.json()) as {
+          status: AnalysisJobStatus;
+          result: AnalysisResult | null;
+          error: string | null;
+        };
+        setAnalysisJob((prev) => ({
+          ...prev,
+          status: data.status,
+          result: data.result ?? null,
+          error: data.error ?? null,
+        }));
+      } catch {
+        // keep polling
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [analysisJob.jobId, analysisJob.status]);
 
   const handleFilesChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setFiles(event.target.files);
@@ -243,6 +329,42 @@ export default function HomePage() {
     }
   };
 
+  // Phase 3: Submit analysis
+  const handleAnalysisSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const trimmed = analysisIntent.trim();
+    if (!trimmed || isAnalysisSubmitting) return;
+
+    setIsAnalysisSubmitting(true);
+    setAnalysisJob({ jobId: null, status: null, result: null, error: null });
+    try {
+      const res = await fetch("/api/analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ intent: trimmed }),
+      });
+      if (!res.ok) {
+        const err = (await res.json()) as { error?: string };
+        throw new Error(err.error ?? "Analysis request failed");
+      }
+      const data = (await res.json()) as { jobId: string };
+      setAnalysisJob({
+        jobId: data.jobId,
+        status: "pending",
+        result: null,
+        error: null,
+      });
+    } catch (err) {
+      setAnalysisJob((prev) => ({
+        ...prev,
+        status: "failed",
+        error: err instanceof Error ? err.message : "Unknown error",
+      }));
+    } finally {
+      setIsAnalysisSubmitting(false);
+    }
+  };
+
   const handleRetry = async (docId: string) => {
     try {
       const res = await fetch(`/api/documents/${docId}/retry`, { method: "POST" });
@@ -275,6 +397,232 @@ export default function HomePage() {
         return <span className="chip chip-pill">Idle</span>;
     }
   };
+
+  const renderAnalysisResults = () => {
+    const result = analysisJob.result;
+    if (!result) return null;
+    const { reasoning, extraction } = result;
+
+    return (
+      <div className="stack" style={{ marginTop: "1rem" }}>
+        {/* Extraction Detail Cards */}
+        <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
+          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+            📦 Extracted Entities
+          </div>
+          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+            <span className="chip chip-pill">{extraction.vendors.length} Vendors</span>
+            <span className="chip chip-pill">{extraction.invoices.length} Invoices</span>
+            <span className="chip chip-pill">{extraction.contracts.length} Contracts</span>
+            <span className="chip chip-pill">{extraction.clauses.length} Clauses</span>
+            <span className="chip chip-pill">{extraction.amounts.length} Amounts</span>
+          </div>
+
+          {/* Vendor details */}
+          {extraction.vendors.length > 0 && (
+            <div style={{ marginBottom: "0.75rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: "0.375rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Vendors
+              </div>
+              {extraction.vendors.map((v, i) => (
+                <div key={i} style={{ padding: "0.5rem", background: "rgba(255,255,255,0.03)", borderRadius: "0.375rem", marginBottom: "0.25rem" }}>
+                  <div style={{ fontWeight: 500 }}>{v.name}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Invoice details */}
+          {extraction.invoices.length > 0 && (
+            <div style={{ marginBottom: "0.75rem" }}>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: "0.375rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Invoices
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                      <th style={{ textAlign: "left", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Invoice #</th>
+                      <th style={{ textAlign: "left", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Vendor</th>
+                      <th style={{ textAlign: "right", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Amount</th>
+                      <th style={{ textAlign: "left", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {extraction.invoices.map((inv, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                        <td style={{ padding: "0.375rem", fontVariantNumeric: "tabular-nums" }}>{inv.number}</td>
+                        <td style={{ padding: "0.375rem" }}>{inv.vendorName}</td>
+                        <td style={{ padding: "0.375rem", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                          {inv.currency} {inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                        <td style={{ padding: "0.375rem" }}>{inv.date}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Amounts breakdown */}
+          {extraction.amounts.length > 0 && (
+            <div>
+              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: "0.375rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Amounts Breakdown
+              </div>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+                      <th style={{ textAlign: "left", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Context</th>
+                      <th style={{ textAlign: "right", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {extraction.amounts.map((a, i) => (
+                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                        <td style={{ padding: "0.375rem" }}>{a.context || "—"}</td>
+                        <td style={{ padding: "0.375rem", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                          {a.currency} {a.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Vendor Totals Table */}
+        <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
+          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+            💰 Vendor Totals
+          </div>
+          {reasoning.totalsByVendor.length > 0 ? (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
+                    <th style={{ textAlign: "left", padding: "0.5rem", color: "rgba(255,255,255,0.6)" }}>Vendor</th>
+                    <th style={{ textAlign: "right", padding: "0.5rem", color: "rgba(255,255,255,0.6)" }}>Total</th>
+                    <th style={{ textAlign: "right", padding: "0.5rem", color: "rgba(255,255,255,0.6)" }}>Invoices</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reasoning.totalsByVendor.map((vt, idx) => (
+                    <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+                      <td style={{ padding: "0.5rem" }}>{vt.vendorName}</td>
+                      <td style={{ padding: "0.5rem", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                        {vt.currency} {vt.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td style={{ padding: "0.5rem", textAlign: "right" }}>{vt.invoiceCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="status-meta">No vendor totals calculated.</p>
+          )}
+        </div>
+
+        {/* Flagged Invoices */}
+        <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
+          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+            🚩 Flagged Invoices
+          </div>
+          {reasoning.flaggedInvoices.length > 0 ? (
+            <div className="status-list">
+              {reasoning.flaggedInvoices.map((fi, idx) => (
+                <div key={idx} className="status-item">
+                  <div className="stack-tight" style={{ flex: 1 }}>
+                    <div className="status-name">
+                      Invoice #{fi.number} — {fi.vendorName}
+                    </div>
+                    <div className="status-meta" style={{ lineHeight: 1.5 }}>
+                      <strong>${fi.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> — {fi.reason}
+                    </div>
+                  </div>
+                  <span className="chip chip-error">Flagged</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="status-meta" style={{ color: "#22c55e" }}>✓ No flagged invoices — all amounts are within normal limits.</p>
+          )}
+        </div>
+
+        {/* Clause Comparisons */}
+        <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
+          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+            ⚖️ Clause &amp; Terms Analysis
+          </div>
+          {reasoning.clauseComparisons.length > 0 ? (
+            <div className="stack-tight">
+              {reasoning.clauseComparisons.map((cc, idx) => (
+                <div key={idx} style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: idx < reasoning.clauseComparisons.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
+                  <div style={{ fontWeight: 600, marginBottom: "0.5rem", textTransform: "capitalize", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#818cf8", display: "inline-block" }} />
+                    {cc.clauseType.replace(/_/g, " ")}
+                  </div>
+                  {cc.clauses.map((cl, ci) => (
+                    <div key={ci} style={{ padding: "0.625rem", background: "rgba(255,255,255,0.03)", borderRadius: "0.375rem", marginBottom: "0.375rem", borderLeft: "2px solid rgba(129,140,248,0.3)" }}>
+                      <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: "0.25rem" }}>{cl.contractTitle}</div>
+                      <p style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap", margin: 0, lineHeight: 1.5, color: "rgba(255,255,255,0.8)" }}>
+                        {cl.text}
+                      </p>
+                    </div>
+                  ))}
+                  <p style={{ fontSize: "0.8rem", marginTop: "0.5rem", fontStyle: "italic", color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
+                    {cc.analysis}
+                  </p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="status-meta">No clauses or terms found in the analyzed documents.</p>
+          )}
+        </div>
+
+        {/* Action Plan */}
+        <div className="surface subtle-shadow" style={{ padding: "1.25rem", borderLeft: "3px solid #818cf8" }}>
+          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
+            📋 Action Plan
+          </div>
+          {reasoning.actionPlan ? (
+            <div style={{ lineHeight: 1.7, fontSize: "0.875rem", color: "rgba(255,255,255,0.85)" }}>
+              {reasoning.actionPlan.split("\n").map((paragraph, idx) => {
+                const trimmed = paragraph.trim();
+                if (!trimmed) return <br key={idx} />;
+                // Detect section headers (bold **text** pattern)
+                if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
+                  return (
+                    <div key={idx} style={{ fontWeight: 700, marginTop: idx > 0 ? "0.75rem" : 0, marginBottom: "0.25rem", color: "#fff" }}>
+                      {trimmed.replace(/\*\*/g, "")}
+                    </div>
+                  );
+                }
+                // Detect numbered items
+                if (/^\d+\./.test(trimmed)) {
+                  return (
+                    <div key={idx} style={{ paddingLeft: "1rem", marginBottom: "0.25rem" }}>
+                      {trimmed}
+                    </div>
+                  );
+                }
+                return <p key={idx} style={{ margin: "0 0 0.5rem", whiteSpace: "pre-wrap" }}>{trimmed}</p>;
+              })}
+            </div>
+          ) : (
+            <p className="status-meta">No action plan generated.</p>
+          )}
+        </div>
+      </div>
+    );
+  };
+
 
   return (
     <div className="stack">
@@ -474,7 +822,63 @@ export default function HomePage() {
           )}
         </div>
       </section>
+
+      {/* Phase 3: Extraction & Reasoning */}
+      <section className="card subtle-shadow">
+        <div className="stack" style={{ padding: "1.5rem 1.5rem 1.75rem" }}>
+          <div className="stack-tight">
+            <div className="pill-row">
+              <span className="chip chip-warn">Phase 3 · Extraction &amp; Reasoning</span>
+            </div>
+            <div className="title">Analyze your documents</div>
+            <p className="muted">
+              Run the full analysis pipeline: retrieve relevant chunks, extract
+              entities (vendors, invoices, contracts, clauses), write to the
+              knowledge graph, and generate insights with multi-document
+              reasoning.
+            </p>
+          </div>
+
+          <form className="stack" onSubmit={handleAnalysisSubmit}>
+            <div className="stack-tight">
+              <label className="muted" htmlFor="analysis-intent-input">
+                Analysis Intent
+              </label>
+              <textarea
+                id="analysis-intent-input"
+                className="input"
+                rows={3}
+                placeholder='e.g. "Summarize vendor totals, flag invoices over $5,000, compare contract liability clauses, and draft an email to accounting."'
+                value={analysisIntent}
+                onChange={(e) => setAnalysisIntent(e.target.value)}
+                disabled={isAnalysisSubmitting}
+              />
+              <button
+                type="submit"
+                className="button-primary"
+                disabled={!analysisIntent.trim() || isAnalysisSubmitting || analysisJob.status === "processing" || analysisJob.status === "pending"}
+              >
+                {isAnalysisSubmitting ? "Submitting..." : analysisJob.status === "processing" || analysisJob.status === "pending" ? "Processing..." : "Run Analysis"}
+              </button>
+            </div>
+          </form>
+
+          {(analysisJob.status === "pending" || analysisJob.status === "processing") && (
+            <div className="stack-tight" style={{ marginTop: "0.75rem" }}>
+              <p className="status-meta">
+                ⏳ Analysis job {analysisJob.jobId?.slice(0, 8)}... — <strong>{analysisJob.status}</strong>
+              </p>
+              <p className="status-meta">
+                Running pipeline: Retrieval → Extraction → Neo4j → Reasoning. This may take a moment...
+              </p>
+            </div>
+          )}
+          {analysisJob.status === "failed" && analysisJob.error && (
+            <div className="status-error-text" style={{ marginTop: "0.5rem" }}>{analysisJob.error}</div>
+          )}
+          {analysisJob.status === "completed" && analysisJob.result && renderAnalysisResults()}
+        </div>
+      </section>
     </div>
   );
 }
-

@@ -7,6 +7,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const intent = typeof body?.intent === "string" ? body.intent.trim() : "";
+    const debug = body?.debug === true;
 
     if (!intent) {
       return NextResponse.json(
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
       .insert({
         type: "retrieval",
         status: "pending",
-        payload: { intent },
+        payload: { intent, debug },
       })
       .select("id")
       .single();

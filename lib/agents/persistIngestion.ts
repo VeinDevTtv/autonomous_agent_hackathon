@@ -9,6 +9,7 @@ export async function persistIngestionOutput(output: IngestionAgentOutput) {
       id: chunk.id,
       document_id: output.documentId,
       chunk_id: chunk.id,
+      chunk_index: chunk.chunkIndex,
       text: chunk.text,
       embedding: chunk.embedding,
     })),
