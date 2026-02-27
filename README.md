@@ -1,0 +1,1 @@
+Smart Document Filler helps you turn piles of invoices, contracts, and receipts into clear, organized summaries and reports. Just upload your documents—our intelligent system reviews, compares, and highlights important details for you, making it easy to spot what matters and take action, all with minimal effort on your part. 

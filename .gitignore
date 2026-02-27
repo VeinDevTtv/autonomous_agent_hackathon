@@ -1,2 +1,6 @@
 .cursor/rules/smart-document-filler.mdc
 TASK_LOG.md
+node_modules
+.next
+dist
+.env

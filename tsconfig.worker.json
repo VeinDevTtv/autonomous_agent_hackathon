@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "target": "ES2020",
+    "rootDir": "."
+  },
+  "include": ["worker/**/*.ts", "lib/**/*.ts"],
+  "exclude": ["node_modules", ".next"]
+}
+
