@@ -1,5 +1,6 @@
 import { getServiceSupabaseClient } from "../supabaseClient";
 import { getGeminiClient } from "../ai/geminiClient";
+import { createPartFromUri } from "@google/genai";
 import {
   type IngestionAgentInput,
   type IngestionAgentOutput,
@@ -68,26 +69,20 @@ export async function runIngestionAgent(
           timestamp: Date.now(),
         }),
       },
-    ).catch(() => {});
+    ).catch(() => { });
     // #endregion agent log
 
     const decoder = new TextDecoder("utf-8");
     fullText = normalizeText(decoder.decode(bytes));
   } else {
+    const blob = new Blob([bytes], { type: input.mimeType });
     const upload = await gemini.files.upload({
-      file: {
-        data: bytes,
+      file: blob,
+      config: {
         mimeType: input.mimeType,
         displayName: input.storagePath,
       },
     });
-
-    const filePart = {
-      fileData: {
-        mimeType: upload.file.mimeType,
-        fileUri: upload.file.uri,
-      },
-    };
 
     const result = await gemini.models.generateContent({
       model: TEXT_MODEL,
@@ -98,7 +93,7 @@ export async function runIngestionAgent(
             {
               text: "Extract clean, machine-readable text from this document. Do not summarize or omit details.",
             },
-            filePart,
+            createPartFromUri(upload.uri!, upload.mimeType!),
           ],
         },
       ],
@@ -114,10 +109,7 @@ export async function runIngestionAgent(
 
   const embeddingResponse = await gemini.models.embedContent({
     model: EMBEDDING_MODEL,
-    contents: segments.map((segment) => ({
-      role: "user",
-      parts: [{ text: segment }],
-    })),
+    contents: segments,
   });
 
   const embeddings = embeddingResponse.embeddings;

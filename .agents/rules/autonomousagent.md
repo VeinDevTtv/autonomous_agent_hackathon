@@ -38,6 +38,113 @@ You are the coding agent for the **Smart Document Filler** MVP. Follow these rul
    - Vendor invoice aggregation
    And use Tavily API to enrich vendor data (risk, background) before generating an action plan.
 5. **Execution Agent** — Generate CSV, JSON, Markdown, email drafts; optional webhooks, and include Tavily findings in the final report.
+## Orchestrator Architecture (Mandatory)
+
+- All multi-agent execution must be managed by a centralized Orchestrator module.
+- The Orchestrator runs in the Render Background Worker.
+- The frontend must never directly call Gemini, Neo4j, or Tavily.
+- Flow:
+  1. Frontend submits analysis request.
+  2. API route creates job record in Supabase.
+  3. Background Worker picks up job.
+  4. Worker runs agents in sequence:
+     Ingestion → Retrieval → Extraction → Neo4j Write → Reasoning → Tavily Enrichment → Execution.
+  5. Results stored in Supabase.
+  6. Frontend polls for completion.
+
+- Orchestrator must:
+  - Handle errors gracefully.
+  - Log failures in TASK_LOG.md.
+  - Ensure each agent receives structured JSON input and produces structured JSON output.
+
+## Standard Agent Interfaces (Strict JSON Contracts)
+
+Define required outputs:
+
+### Ingestion Agent Output
+{
+  documentId: string,
+  chunks: [{ id: string, text: string, embedding: number[] }]
+}
+
+### Retrieval Agent Output
+{
+  relevantChunks: [{ chunkId: string, text: string, similarity: number }]
+}
+
+### Extraction Agent Output
+{
+  vendors: [],
+  invoices: [],
+  contracts: [],
+  clauses: [],
+  amounts: []
+}
+
+### Reasoning Agent Output
+{
+  totalsByVendor: [],
+  flaggedInvoices: [],
+  clauseComparisons: [],
+  actionPlan: string
+}
+
+### Execution Agent Output
+{
+  csvUrl: string,
+  markdownReport: string,
+  emailDraft: string,
+  jsonResult: object
+}
+
+Agents must strictly adhere to these contracts.
+
+## Environment Variable Discipline (Mandatory)
+
+- Any time new environment variables are introduced:
+  - Update `.env.example`.
+  - Mention the change in `TASK_LOG.md`.
+  - Notify the user in the final message summary.
+- Never hardcode secrets.
+- All services must read from process.env only.
+- The app must fail fast at startup if required env vars are missing.
+
+## Supabase Vector Schema Requirements
+
+- Use pgvector extension.
+- Embedding column must define dimension size based on Gemini Embeddings model.
+- Use cosine similarity.
+- Implement a SQL RPC function for vector search:
+  match_documents(query_embedding vector, match_count int)
+
+- Retrieval Agent must use this RPC function.
+
+## Neo4j Requirements
+
+- Create unique constraints on all node IDs.
+- Prevent duplicate vendor creation.
+- All Neo4j writes must occur after Extraction Agent.
+
+## Tavily Requirements
+
+- Tavily enrichment must:
+  - Run only once per unique vendor.
+  - Cache results in Supabase.
+  - Not re-query if cached within 24h.
+
+## Render Worker Requirement
+
+- Multi-agent orchestration must run in Render Background Worker.
+- Frontend API routes must be lightweight and non-blocking.
+- No long-running Gemini calls in request-response cycle.
+
+## Skills (`.agents/skills`)
+
+Use these project-specific skills by reading their `SKILL.md` files and following their instructions exactly:
+
+- **Neo4j Entity Graph Engine** (`.agents/skills/neo4j-entity-graph-engine/SKILL.md`): Manage Neo4j-based graph storage and querying of extracted entities (vendors, invoices, contracts, clauses, amounts). Use after the Extraction Agent has produced structured entities and when the Reasoning Agent needs graph aggregation, clause comparison, or anomaly detection.
+- **Render Deployment Orchestrator** (`.agents/skills/render-deployment-orchestrator/SKILL.md`): Plan and manage deployment of Smart Document Filler on Render, including web service, background worker, environment variables, and stateless architecture. Use whenever deploying or updating the app on Render or editing `render.yaml`.
+- **Tavily Vendor Risk Enrichment** (`.agents/skills/tavily-vendor-risk-enrichment/SKILL.md`): Integrate Tavily for external vendor risk research. Use after vendors are extracted and written to Neo4j, during the Reasoning/Execution phases, to enrich vendor analysis and attach structured risk data to reports, email drafts, and JSON outputs.
 
 ## MVP scope (8h)
 
@@ -63,10 +170,6 @@ User uploads 5 invoices + 1 contract. Prompt: *"Summarize vendor totals, flag in
 
 ## Terminal Execution Strategy (Mandatory)
 
-Always run commands correctly so you use the terminal correctly when needed:
-
-```bash
-cmd /c "cd /d c:\Personals\path\to\location && command"
-```
+**Do NOT run terminal commands directly.** Instead, tell the user what commands to run and let them execute manually. Focus only on writing code.
 
 **Start:** Create/confirm the rules file and `TASK_LOG.md`, then build Phase 1 (Upload & Ingestion). Update `TASK_LOG.md` after Phase 1 before starting Phase 2.

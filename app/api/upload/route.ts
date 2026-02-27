@@ -42,6 +42,7 @@ export async function POST(request: NextRequest) {
         });
 
       if (uploadError) {
+        console.error("[upload] Storage error for", safeName, uploadError);
         return NextResponse.json(
           { error: `Failed to upload ${safeName}`, details: uploadError.message },
           { status: 500 },
@@ -58,6 +59,7 @@ export async function POST(request: NextRequest) {
       });
 
       if (insertError) {
+        console.error("[upload] Insert error for", safeName, insertError);
         return NextResponse.json(
           { error: "Failed to create document record", details: insertError.message },
           { status: 500 },

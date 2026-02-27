@@ -16,3 +16,16 @@ export interface IngestionAgentInput {
   userId?: string | null;
 }
 
+export interface RetrievalAgentInput {
+  intent: string;
+  documentIds?: string[];
+}
+
+export interface RetrievalAgentOutput {
+  relevantChunks: Array<{
+    chunkId: string;
+    text: string;
+    similarity: number;
+  }>;
+}
+
