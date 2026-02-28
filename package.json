@@ -10,6 +10,7 @@
     "lint": "next lint",
     "build:worker": "tsc -p tsconfig.worker.json && node scripts/ensure-worker-cjs.cjs",
     "worker": "node dist/worker/index.js",
+    "health-check": "node scripts/health-check.js",
     "test": "echo \"No tests defined\" && exit 0"
   },
   "repository": {

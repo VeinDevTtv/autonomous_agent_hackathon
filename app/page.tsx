@@ -12,21 +12,6 @@ type DocumentStatus = {
   createdAt?: string;
 };
 
-type RetrievalJobStatus = "pending" | "processing" | "completed" | "failed";
-
-type RelevantChunk = {
-  chunkId: string;
-  text: string;
-  similarity: number;
-};
-
-type RetrievalJobState = {
-  jobId: string | null;
-  status: RetrievalJobStatus | null;
-  result: { relevantChunks: RelevantChunk[] } | null;
-  error: string | null;
-};
-
 // Phase 3 types
 type AnalysisJobStatus = "pending" | "processing" | "completed" | "failed";
 
@@ -113,16 +98,6 @@ export default function HomePage() {
   const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const [fileInputKey, setFileInputKey] = useState(0);
 
-  const [intent, setIntent] = useState("");
-  const [retrievalJob, setRetrievalJob] = useState<RetrievalJobState>({
-    jobId: null,
-    status: null,
-    result: null,
-    error: null,
-  });
-  const [isRetrievalSubmitting, setIsRetrievalSubmitting] = useState(false);
-
-  // Phase 3 state
   const [analysisIntent, setAnalysisIntent] = useState("");
   const [analysisJob, setAnalysisJob] = useState<AnalysisJobState>({
     jobId: null,
@@ -192,35 +167,6 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [documents]);
 
-  useEffect(() => {
-    const jobId = retrievalJob.jobId;
-    const status = retrievalJob.status;
-    if (!jobId || !status || status === "completed" || status === "failed") return;
-
-    const interval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/jobs/${jobId}`);
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          status: RetrievalJobStatus;
-          result: { relevantChunks: RelevantChunk[] } | null;
-          error: string | null;
-        };
-        setRetrievalJob((prev) => ({
-          ...prev,
-          status: data.status,
-          result: data.result ?? null,
-          error: data.error ?? null,
-        }));
-      } catch {
-        // keep polling
-      }
-    }, 1500);
-
-    return () => clearInterval(interval);
-  }, [retrievalJob.jobId, retrievalJob.status]);
-
-  // Phase 3: Poll analysis job
   useEffect(() => {
     const jobId = analysisJob.jobId;
     const status = analysisJob.status;
@@ -309,42 +255,6 @@ export default function HomePage() {
     }
   };
 
-  const handleRetrievalSubmit = async (event: React.FormEvent) => {
-    event.preventDefault();
-    const trimmed = intent.trim();
-    if (!trimmed || isRetrievalSubmitting) return;
-
-    setIsRetrievalSubmitting(true);
-    setRetrievalJob({ jobId: null, status: null, result: null, error: null });
-    try {
-      const res = await fetch("/api/retrieval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ intent: trimmed }),
-      });
-      if (!res.ok) {
-        const err = (await res.json()) as { error?: string };
-        throw new Error(err.error ?? "Retrieval request failed");
-      }
-      const data = (await res.json()) as { jobId: string };
-      setRetrievalJob({
-        jobId: data.jobId,
-        status: "pending",
-        result: null,
-        error: null,
-      });
-    } catch (err) {
-      setRetrievalJob((prev) => ({
-        ...prev,
-        status: "failed",
-        error: err instanceof Error ? err.message : "Unknown error",
-      }));
-    } finally {
-      setIsRetrievalSubmitting(false);
-    }
-  };
-
-  // Phase 3: Submit analysis
   const handleAnalysisSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = analysisIntent.trim();
@@ -420,179 +330,100 @@ export default function HomePage() {
 
     return (
       <div className="stack" style={{ marginTop: "1rem" }}>
-        {/* Extraction Detail Cards */}
-        <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
-          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-            📦 Extracted Entities
-          </div>
-          <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "1rem" }}>
-            <span className="chip chip-pill">{extraction.vendors.length} Vendors</span>
-            <span className="chip chip-pill">{extraction.invoices.length} Invoices</span>
-            <span className="chip chip-pill">{extraction.contracts.length} Contracts</span>
-            <span className="chip chip-pill">{extraction.clauses.length} Clauses</span>
-            <span className="chip chip-pill">{extraction.amounts.length} Amounts</span>
-          </div>
+        {/* Extracted Entities badges */}
+        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.vendors.length}</strong> Vendors</span>
+          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.invoices.length}</strong> Invoices</span>
+          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.contracts.length}</strong> Contracts</span>
+          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.clauses.length}</strong> Clauses</span>
+          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.amounts.length}</strong> Amounts</span>
+        </div>
 
-          {/* Vendor details */}
-          {extraction.vendors.length > 0 && (
-            <div style={{ marginBottom: "0.75rem" }}>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: "0.375rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Vendors
-              </div>
-              {extraction.vendors.map((v, i) => (
-                <div key={i} style={{ padding: "0.5rem", background: "rgba(255,255,255,0.03)", borderRadius: "0.375rem", marginBottom: "0.25rem" }}>
-                  <div style={{ fontWeight: 500 }}>{v.name}</div>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Financials & Tables Grid */}
+        <div className="grid gap-6 md:grid-cols-2">
 
-          {/* Invoice details */}
-          {extraction.invoices.length > 0 && (
-            <div style={{ marginBottom: "0.75rem" }}>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: "0.375rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Invoices
-              </div>
+          {/* Vendor Totals Table */}
+          <div className="surface subtle-shadow flex flex-col" style={{ padding: "1.25rem", background: "white" }}>
+            <div className="title" style={{ fontSize: "1rem", marginBottom: "1rem" }}>💰 Vendor Totals</div>
+            {reasoning.totalsByVendor.length > 0 ? (
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
                   <thead>
-                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                      <th style={{ textAlign: "left", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Invoice #</th>
-                      <th style={{ textAlign: "left", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Vendor</th>
-                      <th style={{ textAlign: "right", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Amount</th>
-                      <th style={{ textAlign: "left", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Date</th>
+                    <tr style={{ borderBottom: "2px solid #f1f5f9" }}>
+                      <th style={{ textAlign: "left", padding: "0.5rem", color: "#64748b", fontWeight: 500 }}>Vendor</th>
+                      <th style={{ textAlign: "right", padding: "0.5rem", color: "#64748b", fontWeight: 500 }}>Total</th>
+                      <th style={{ textAlign: "right", padding: "0.5rem", color: "#64748b", fontWeight: 500 }}>Invoices</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {extraction.invoices.map((inv, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <td style={{ padding: "0.375rem", fontVariantNumeric: "tabular-nums" }}>{inv.number}</td>
-                        <td style={{ padding: "0.375rem" }}>{inv.vendorName}</td>
-                        <td style={{ padding: "0.375rem", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                          {inv.currency} {inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    {reasoning.totalsByVendor.map((vt, idx) => (
+                      <tr key={idx} style={{ borderBottom: "1px solid #f8fafc" }}>
+                        <td style={{ padding: "0.75rem 0.5rem", fontWeight: 500 }}>{vt.vendorName}</td>
+                        <td style={{ padding: "0.75rem 0.5rem", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                          {vt.currency} {vt.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
-                        <td style={{ padding: "0.375rem" }}>{inv.date}</td>
+                        <td style={{ padding: "0.75rem 0.5rem", textAlign: "right", color: "#64748b" }}>{vt.invoiceCount}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
-
-          {/* Amounts breakdown */}
-          {extraction.amounts.length > 0 && (
-            <div>
-              <div style={{ fontSize: "0.8rem", fontWeight: 600, color: "rgba(255,255,255,0.5)", marginBottom: "0.375rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                Amounts Breakdown
-              </div>
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                      <th style={{ textAlign: "left", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Context</th>
-                      <th style={{ textAlign: "right", padding: "0.375rem", color: "rgba(255,255,255,0.5)" }}>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {extraction.amounts.map((a, i) => (
-                      <tr key={i} style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                        <td style={{ padding: "0.375rem" }}>{a.context || "—"}</td>
-                        <td style={{ padding: "0.375rem", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
-                          {a.currency} {a.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Vendor Totals Table */}
-        <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
-          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-            💰 Vendor Totals
+            ) : (
+              <p className="status-meta">No vendor totals calculated.</p>
+            )}
           </div>
-          {reasoning.totalsByVendor.length > 0 ? (
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-                <thead>
-                  <tr style={{ borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
-                    <th style={{ textAlign: "left", padding: "0.5rem", color: "rgba(255,255,255,0.6)" }}>Vendor</th>
-                    <th style={{ textAlign: "right", padding: "0.5rem", color: "rgba(255,255,255,0.6)" }}>Total</th>
-                    <th style={{ textAlign: "right", padding: "0.5rem", color: "rgba(255,255,255,0.6)" }}>Invoices</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reasoning.totalsByVendor.map((vt, idx) => (
-                    <tr key={idx} style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-                      <td style={{ padding: "0.5rem" }}>{vt.vendorName}</td>
-                      <td style={{ padding: "0.5rem", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
-                        {vt.currency} {vt.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td style={{ padding: "0.5rem", textAlign: "right" }}>{vt.invoiceCount}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="status-meta">No vendor totals calculated.</p>
-          )}
-        </div>
 
-        {/* Flagged Invoices */}
-        <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
-          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-            🚩 Flagged Invoices
-          </div>
-          {reasoning.flaggedInvoices.length > 0 ? (
-            <div className="status-list">
-              {reasoning.flaggedInvoices.map((fi, idx) => (
-                <div key={idx} className="status-item">
-                  <div className="stack-tight" style={{ flex: 1 }}>
-                    <div className="status-name">
-                      Invoice #{fi.number} — {fi.vendorName}
+          {/* Flagged Invoices */}
+          <div className="surface subtle-shadow flex flex-col" style={{ padding: "1.25rem", background: "white" }}>
+            <div className="title" style={{ fontSize: "1rem", marginBottom: "1rem" }}>🚩 Flagged Anomalies</div>
+            {reasoning.flaggedInvoices.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {reasoning.flaggedInvoices.map((fi, idx) => (
+                  <div key={idx} className="p-3 bg-red-50 border border-red-100 rounded-lg">
+                    <div className="flex justify-between items-start mb-1">
+                      <span className="font-semibold text-red-900 text-sm">{fi.vendorName} (Inv #{fi.number})</span>
+                      <span className="font-bold text-red-700 text-sm">${fi.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
                     </div>
-                    <div className="status-meta" style={{ lineHeight: 1.5 }}>
-                      <strong>${fi.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong> — {fi.reason}
-                    </div>
+                    <p className="text-xs text-red-800 leading-snug">{fi.reason}</p>
                   </div>
-                  <span className="chip chip-error">Flagged</span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="status-meta" style={{ color: "#22c55e" }}>✓ No flagged invoices — all amounts are within normal limits.</p>
-          )}
+                ))}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center p-6 bg-green-50 rounded-lg border border-green-100 h-full">
+                <p className="text-sm font-medium text-green-700">✓ No flagged invoices — all amounts are within bounds.</p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Clause Comparisons */}
-        <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
-          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-            ⚖️ Clause &amp; Terms Analysis
+        <div className="surface subtle-shadow" style={{ padding: "1.5rem", background: "white" }}>
+          <div className="title" style={{ fontSize: "1rem", marginBottom: "1rem" }}>
+            ⚖️ Contract Clause Analysis
           </div>
           {reasoning.clauseComparisons.length > 0 ? (
-            <div className="stack-tight">
+            <div className="grid gap-6 md:grid-cols-2">
               {reasoning.clauseComparisons.map((cc, idx) => (
-                <div key={idx} style={{ marginBottom: "1rem", paddingBottom: "1rem", borderBottom: idx < reasoning.clauseComparisons.length - 1 ? "1px solid rgba(255,255,255,0.06)" : "none" }}>
-                  <div style={{ fontWeight: 600, marginBottom: "0.5rem", textTransform: "capitalize", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#818cf8", display: "inline-block" }} />
+                <div key={idx} className="flex flex-col">
+                  <div style={{ fontWeight: 600, marginBottom: "0.75rem", textTransform: "capitalize", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: "#0f172a", display: "inline-block" }} />
                     {cc.clauseType.replace(/_/g, " ")}
                   </div>
-                  {cc.clauses.map((cl, ci) => (
-                    <div key={ci} style={{ padding: "0.625rem", background: "rgba(255,255,255,0.03)", borderRadius: "0.375rem", marginBottom: "0.375rem", borderLeft: "2px solid rgba(129,140,248,0.3)" }}>
-                      <div style={{ fontSize: "0.75rem", fontWeight: 500, color: "rgba(255,255,255,0.5)", marginBottom: "0.25rem" }}>{cl.contractTitle}</div>
-                      <p style={{ fontSize: "0.8rem", whiteSpace: "pre-wrap", margin: 0, lineHeight: 1.5, color: "rgba(255,255,255,0.8)" }}>
-                        {cl.text}
-                      </p>
-                    </div>
-                  ))}
-                  <p style={{ fontSize: "0.8rem", marginTop: "0.5rem", fontStyle: "italic", color: "rgba(255,255,255,0.55)", lineHeight: 1.5 }}>
-                    {cc.analysis}
-                  </p>
+                  <div className="flex flex-col gap-2 mb-3">
+                    {cc.clauses.map((cl, ci) => (
+                      <div key={ci} style={{ padding: "0.75rem", background: "#f8fafc", borderRadius: "0.5rem", borderLeft: "3px solid #cbd5e1" }}>
+                        <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem", textTransform: "uppercase" }}>{cl.contractTitle}</div>
+                        <p style={{ fontSize: "0.825rem", margin: 0, lineHeight: 1.5, color: "#334155" }}>
+                          {cl.text}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100/50 flex-1">
+                    <p style={{ fontSize: "0.85rem", fontStyle: "italic", color: "#334155", lineHeight: 1.5, margin: 0 }}>
+                      {cc.analysis}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -602,19 +433,19 @@ export default function HomePage() {
         </div>
 
         {/* Action Plan */}
-        <div className="surface subtle-shadow" style={{ padding: "1.25rem", borderLeft: "3px solid #818cf8" }}>
-          <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-            📋 Action Plan
+        <div className="surface subtle-shadow" style={{ padding: "1.5rem", background: "white", borderLeft: "4px solid #0f172a" }}>
+          <div className="title" style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>
+            📋 Recommended Action Plan
           </div>
           {reasoning.actionPlan ? (
-            <div style={{ lineHeight: 1.7, fontSize: "0.875rem", color: "rgba(255,255,255,0.85)" }}>
+            <div style={{ lineHeight: 1.7, fontSize: "0.95rem", color: "#334155" }}>
               {reasoning.actionPlan.split("\n").map((paragraph, idx) => {
                 const trimmed = paragraph.trim();
                 if (!trimmed) return <br key={idx} />;
                 // Detect section headers (bold **text** pattern)
                 if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
                   return (
-                    <div key={idx} style={{ fontWeight: 700, marginTop: idx > 0 ? "0.75rem" : 0, marginBottom: "0.25rem", color: "#fff" }}>
+                    <div key={idx} style={{ fontWeight: 700, marginTop: idx > 0 ? "1rem" : 0, marginBottom: "0.5rem", color: "#0f172a" }}>
                       {trimmed.replace(/\*\*/g, "")}
                     </div>
                   );
@@ -622,12 +453,12 @@ export default function HomePage() {
                 // Detect numbered items
                 if (/^\d+\./.test(trimmed)) {
                   return (
-                    <div key={idx} style={{ paddingLeft: "1rem", marginBottom: "0.25rem" }}>
+                    <div key={idx} style={{ paddingLeft: "1rem", marginBottom: "0.35rem" }}>
                       {trimmed}
                     </div>
                   );
                 }
-                return <p key={idx} style={{ margin: "0 0 0.5rem", whiteSpace: "pre-wrap" }}>{trimmed}</p>;
+                return <p key={idx} style={{ margin: "0 0 0.75rem", whiteSpace: "pre-wrap" }}>{trimmed}</p>;
               })}
             </div>
           ) : (
@@ -635,93 +466,87 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* Phase 4: Execution outputs */}
+        {/* Execution outputs */}
         {result.execution ? (
-          <div>
-            <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
-              <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-                📥 Download &amp; Report
-              </div>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", alignItems: "center" }}>
-                {result.execution.csvUrl && (
-                  <a
-                    href={result.execution.csvUrl}
-                    className="button-primary"
-                    style={{ fontSize: "0.875rem" }}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Download CSV
-                  </a>
-                )}
-              </div>
+          <div className="grid gap-6 md:grid-cols-2">
+
+            <div className="stack-tight">
+              {result.execution.emailDraft && (
+                <div className="surface subtle-shadow flex flex-col h-full" style={{ padding: "1.5rem", background: "white" }}>
+                  <div className="flex justify-between items-center mb-3">
+                    <div className="title" style={{ fontSize: "1rem" }}>✉️ Email Draft</div>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-3 rounded-md transition-colors"
+                      onClick={() => {
+                        void navigator.clipboard.writeText(result.execution!.emailDraft);
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <pre style={{ flex: 1, whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "0.875rem", margin: 0, padding: "1rem", background: "#f8fafc", borderRadius: "0.5rem", border: "1px solid #e2e8f0", color: "#334155" }}>
+                    {result.execution.emailDraft}
+                  </pre>
+                </div>
+              )}
             </div>
 
-            {result.execution.markdownReport && (
-              <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
-                <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-                  📄 Markdown Report
+            <div className="stack-tight">
+              {(result.vendor_risk_enrichment?.length ?? 0) > 0 && (
+                <div className="surface subtle-shadow" style={{ padding: "1.5rem", background: "white" }}>
+                  <div className="title" style={{ fontSize: "1rem", marginBottom: "0.25rem" }}>
+                    🔍 External Vendor Risk Insights
+                  </div>
+                  <p className="text-xs text-slate-500 mb-4 font-medium uppercase tracking-wider">
+                    Sourced via Tavily Web Search
+                  </p>
+                  <div className="flex flex-col gap-4">
+                    {result.vendor_risk_enrichment!.map((v, idx) => (
+                      <div key={idx} style={{ padding: "1rem", background: "#f8fafc", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
+                        <div className="flex justify-between items-center mb-2">
+                          <div style={{ fontWeight: 600 }}>{v.vendor_name}</div>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${v.risk_level.toLowerCase() === 'high' ? 'bg-red-100 text-red-700' : v.risk_level.toLowerCase() === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
+                            Risk: {v.risk_level}
+                          </span>
+                        </div>
+                        {v.background_summary && (
+                          <p style={{ margin: "0.5rem 0", fontSize: "0.85rem", lineHeight: 1.5, color: "#475569" }}>{v.background_summary}</p>
+                        )}
+                        {v.risk_reasons?.length > 0 && (
+                          <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem", fontSize: "0.8rem", color: "#64748b" }}>
+                            {v.risk_reasons.slice(0, 5).map((r, i) => (
+                              <li key={i}>{r}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <div style={{ fontSize: "0.875rem", lineHeight: 1.6, whiteSpace: "pre-wrap", color: "rgba(255,255,255,0.85)" }}>
-                  {result.execution.markdownReport.split("\n").map((line, i) => (
-                    <span key={i}>
-                      {line}
-                      {"\n"}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {result.execution.emailDraft && (
-              <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
-                <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-                  ✉️ Email Draft
+            {/* CSV Download Card */}
+            {result.execution.csvUrl && (
+              <div className="surface subtle-shadow flex items-center justify-between col-span-full" style={{ padding: "1.25rem 1.5rem", background: "white" }}>
+                <div className="flex items-center gap-3">
+                  <div className="bg-emerald-100 text-emerald-700 p-2 rounded-lg">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                  </div>
+                  <div>
+                    <div className="font-semibold text-slate-900">Download Data Export</div>
+                    <div className="text-xs text-slate-500">CSV format of your parsed invoices and vendors</div>
+                  </div>
                 </div>
-                <pre style={{ whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "0.875rem", margin: 0, padding: "0.75rem", background: "rgba(255,255,255,0.04)", borderRadius: "0.375rem", color: "rgba(255,255,255,0.9)" }}>
-                  {result.execution.emailDraft}
-                </pre>
-                <button
-                  type="button"
+                <a
+                  href={result.execution.csvUrl}
                   className="button-primary"
-                  style={{ marginTop: "0.75rem", fontSize: "0.875rem" }}
-                  onClick={() => {
-                    void navigator.clipboard.writeText(result.execution!.emailDraft);
-                  }}
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
-                  Copy to clipboard
-                </button>
-              </div>
-            )}
-
-            {(result.vendor_risk_enrichment?.length ?? 0) > 0 && (
-              <div className="surface subtle-shadow" style={{ padding: "1rem" }}>
-                <div className="title" style={{ fontSize: "0.95rem", marginBottom: "0.75rem" }}>
-                  🔍 External Vendor Risk Insights (Tavily)
-                </div>
-                <p className="status-meta" style={{ marginBottom: "0.75rem" }}>
-                  External web research via Tavily; not from your documents.
-                </p>
-                <div className="stack-tight">
-                  {result.vendor_risk_enrichment!.map((v, idx) => (
-                    <div key={idx} style={{ padding: "0.75rem", background: "rgba(255,255,255,0.04)", borderRadius: "0.375rem", borderLeft: "3px solid rgba(129,140,248,0.5)" }}>
-                      <div style={{ fontWeight: 600, marginBottom: "0.25rem" }}>{v.vendor_name}</div>
-                      <span className="chip chip-pill" style={{ marginBottom: "0.375rem" }}>
-                        Risk: {v.risk_level}
-                      </span>
-                      {v.background_summary && (
-                        <p className="status-meta" style={{ margin: "0.375rem 0", lineHeight: 1.5 }}>{v.background_summary}</p>
-                      )}
-                      {v.risk_reasons?.length > 0 && (
-                        <ul style={{ margin: "0.25rem 0 0", paddingLeft: "1.25rem", fontSize: "0.8rem", color: "rgba(255,255,255,0.7)" }}>
-                          {v.risk_reasons.slice(0, 5).map((r, i) => (
-                            <li key={i}>{r}</li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                  Export CSV
+                </a>
               </div>
             )}
           </div>
@@ -732,27 +557,19 @@ export default function HomePage() {
 
 
   return (
-    <div className="stack">
-      <section className="card subtle-shadow">
-        <div className="stack" style={{ padding: "1.5rem 1.5rem 1.75rem" }}>
+    <div className="stack max-w-4xl mx-auto w-full">
+      <section className="card">
+        <div className="stack" style={{ padding: "2rem" }}>
           <div className="stack-tight">
-            <div className="pill-row">
-              <span className="chip chip-pill">Phase 1 · Upload &amp; Ingest</span>
-            </div>
-            <div className="title">Upload your invoices and contracts</div>
-            <p className="muted">
-              We&apos;ll store your documents securely in Supabase, then an
-              ingestion worker will run OCR, chunking, and embeddings with
-              Gemini before later phases analyze them.
+            <div className="title text-2xl">Document Library</div>
+            <p className="muted text-base">
+              Upload your invoices and contracts. They will be securely processed and ingested into the knowledge graph instantly.
             </p>
           </div>
 
           <form className="stack" onSubmit={handleSubmit}>
             <div className="stack-tight file-input">
-              <label className="muted" htmlFor="file-input">
-                Files
-              </label>
-              <label className="file-dropzone" htmlFor="file-input">
+              <label className="file-dropzone shadow-sm" htmlFor="file-input">
                 <input
                   id="file-input"
                   key={fileInputKey}
@@ -761,30 +578,34 @@ export default function HomePage() {
                   accept=".pdf,image/*"
                   onChange={handleFilesChange}
                 />
-                <div className="stack-tight">
-                  <div className="status-name">
-                    Drag &amp; drop invoices and contracts
+                <div className="stack-tight flex flex-col items-center">
+                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-2 border border-slate-100">
+                    <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
                   </div>
-                  <p className="status-meta">
-                    PDFs and images are supported. These will be uploaded to
-                    Supabase Storage and queued for ingestion.
+                  <div className="status-name text-lg font-medium">
+                    Drop files here or click to browse
+                  </div>
+                  <p className="status-meta text-center max-w-sm">
+                    Support for PDFs and images (PNG, JPEG).
                   </p>
                 </div>
               </label>
 
               {files && files.length > 0 && (
-                <p className="status-meta">
-                  Selected {files.length} file
-                  {files.length > 1 ? "s" : ""}.
-                </p>
+                <div className="bg-white px-4 py-3 rounded-lg border border-slate-200 shadow-sm flex items-center justify-between mt-2">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                    <span className="text-sm font-medium text-slate-700">{files.length} file{files.length > 1 ? "s" : ""} selected</span>
+                  </div>
+                </div>
               )}
               {uploadError && (
-                <div className="status-error-text" role="alert">
+                <div className="status-error-text mt-2" role="alert">
                   {uploadError}
                 </div>
               )}
               {uploadSuccess && (
-                <div style={{ color: "#22c55e", fontWeight: 500, fontSize: "0.875rem" }} role="status">
+                <div className="text-emerald-600 bg-emerald-50 px-3 py-2 rounded-md border border-emerald-100 font-medium text-sm mt-2" role="status">
                   {uploadSuccess}
                 </div>
               )}
@@ -792,136 +613,49 @@ export default function HomePage() {
 
             <button
               type="submit"
-              className="button-primary"
+              className="button-primary self-start"
               disabled={!files || !files.length || isSubmitting}
             >
-              {isSubmitting ? "Uploading..." : "Upload & queue ingestion"}
+              {isSubmitting ? "Uploading..." : "Upload Documents"}
             </button>
           </form>
-        </div>
-      </section>
 
-      <section className="surface subtle-shadow" style={{ padding: "1.25rem" }}>
-        <div className="stack-tight">
-          <div className="row">
-            <div>
-              <div className="title" style={{ fontSize: "1rem" }}>
-                Ingestion jobs
-              </div>
-              <p className="status-meta">
-                As documents move through the pipeline, their status will update
-                here.
-              </p>
-            </div>
-          </div>
-
-          <div className="status-list">
-            {documents.length === 0 ? (
-              <p className="status-meta">
-                No documents yet. Upload invoices or contracts to kick off
-                ingestion.
-              </p>
-            ) : (
-              documents.map((doc) => (
-                <div key={doc.id} className="status-item">
-                  <div className="stack-tight" style={{ flex: 1 }}>
-                    <div className="status-name">{doc.filename}</div>
-                    <div className="status-meta">
-                      {doc.createdAt
-                        ? `Created at ${new Date(doc.createdAt).toLocaleString()}`
-                        : "Queued"}
-                    </div>
-                    {doc.errorMessage && (
-                      <div className="status-error-text">
-                        {doc.errorMessage}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    {doc.status === "error" && (
-                      <button
-                        className="button-primary"
-                        style={{ fontSize: "0.75rem", padding: "0.25rem 0.75rem" }}
-                        onClick={() => handleRetry(doc.id)}
-                      >
-                        Retry
-                      </button>
-                    )}
-                    {renderStatusChip(doc.status)}
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </section>
-
-      <section className="card subtle-shadow">
-        <div className="stack" style={{ padding: "1.5rem 1.5rem 1.75rem" }}>
-          <div className="stack-tight">
-            <div className="pill-row">
-              <span className="chip chip-pill">Phase 2 · Retrieval &amp; Intent</span>
-            </div>
-            <div className="title">Search your documents by intent</div>
-            <p className="muted">
-              Enter your goal or question. The worker will embed your intent,
-              run vector search, and return the top 10 relevant chunks.
-            </p>
-          </div>
-
-          <form className="stack" onSubmit={handleRetrievalSubmit}>
-            <div className="stack-tight">
-              <label className="muted" htmlFor="intent-input">
-                Intent
-              </label>
-              <textarea
-                id="intent-input"
-                className="input"
-                rows={3}
-                placeholder="e.g. Summarize vendor totals, find invoices over $5,000"
-                value={intent}
-                onChange={(e) => setIntent(e.target.value)}
-                disabled={isRetrievalSubmitting}
-              />
-              <button
-                type="submit"
-                className="button-primary"
-                disabled={!intent.trim() || isRetrievalSubmitting}
-              >
-                {isRetrievalSubmitting ? "Submitting..." : "Run retrieval"}
-              </button>
-            </div>
-          </form>
-
-          {(retrievalJob.status === "pending" || retrievalJob.status === "processing") && (
-            <p className="status-meta">
-              Job {retrievalJob.jobId?.slice(0, 8)}... — {retrievalJob.status}. Polling...
-            </p>
-          )}
-          {retrievalJob.status === "failed" && retrievalJob.error && (
-            <div className="status-error-text">{retrievalJob.error}</div>
-          )}
-          {retrievalJob.status === "completed" && retrievalJob.result?.relevantChunks && (
-            <div className="stack-tight" style={{ marginTop: "1rem" }}>
-              <div className="title" style={{ fontSize: "1rem" }}>
-                Retrieved chunks ({retrievalJob.result.relevantChunks.length})
-              </div>
+          {/* Upload Status List */}
+          {documents.length > 0 && (
+            <div className="mt-8">
+              <div className="text-sm font-semibold text-slate-900 mb-3 tracking-wide uppercase">Ingestion Queue</div>
               <div className="status-list">
-                {retrievalJob.result.relevantChunks.map((chunk, idx) => (
-                  <div key={chunk.chunkId + idx} className="status-item">
-                    <div className="stack-tight" style={{ flex: 1 }}>
-                      <div className="status-name">
-                        {chunk.chunkId.slice(0, 12)}...
+                {documents.map((doc) => (
+                  <div key={doc.id} className="status-item">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-md bg-slate-100 flex items-center justify-center border border-slate-200">
+                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
                       </div>
-                      <p className="status-meta" style={{ whiteSpace: "pre-wrap" }}>
-                        {chunk.text.length > 300
-                          ? `${chunk.text.slice(0, 300)}...`
-                          : chunk.text}
-                      </p>
+                      <div className="stack-tight gap-0.5">
+                        <div className="status-name text-sm">{doc.filename}</div>
+                        <div className="status-meta text-xs">
+                          {doc.createdAt
+                            ? `Created at ${new Date(doc.createdAt).toLocaleTimeString()}`
+                            : "Queued"}
+                        </div>
+                      </div>
                     </div>
-                    <span className="chip chip-pill">
-                      {(chunk.similarity * 100).toFixed(1)}%
-                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      {doc.errorMessage && (
+                        <div className="status-error-text text-xs mr-2">
+                          {doc.errorMessage}
+                        </div>
+                      )}
+                      {doc.status === "error" && (
+                        <button
+                          className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold py-1 px-3 rounded-md transition-colors box-shadow-sm"
+                          onClick={() => handleRetry(doc.id)}
+                        >
+                          Retry
+                        </button>
+                      )}
+                      {renderStatusChip(doc.status)}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -930,60 +664,91 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Phase 3: Extraction & Reasoning */}
-      <section className="card subtle-shadow">
-        <div className="stack" style={{ padding: "1.5rem 1.5rem 1.75rem" }}>
+      {/* Analysis Section */}
+      <section className="card pb-8">
+        <div className="stack" style={{ padding: "2rem" }}>
           <div className="stack-tight">
-            <div className="pill-row">
-              <span className="chip chip-warn">Phase 3 · Extraction &amp; Reasoning</span>
-            </div>
-            <div className="title">Analyze your documents</div>
-            <p className="muted">
-              Run the full analysis pipeline: retrieve relevant chunks, extract
-              entities (vendors, invoices, contracts, clauses), write to the
-              knowledge graph, and generate insights with multi-document
-              reasoning.
+            <div className="title text-2xl">Analysis Studio</div>
+            <p className="muted text-base">
+              Query your documents. Our agent will extract entities, reason over the knowledge graph, and generate insights based on your prompt.
             </p>
           </div>
 
           <form className="stack" onSubmit={handleAnalysisSubmit}>
-            <div className="stack-tight">
-              <label className="muted" htmlFor="analysis-intent-input">
-                Analysis Intent
+            <div className="stack-tight relative">
+              <label className="text-sm font-semibold text-slate-900 tracking-wide uppercase" htmlFor="analysis-intent-input">
+                Prompt Intent
               </label>
               <textarea
                 id="analysis-intent-input"
-                className="input"
-                rows={3}
+                className="input min-h-[120px] resize-none pb-14 shadow-sm"
                 placeholder='e.g. "Summarize vendor totals, flag invoices over $5,000, compare contract liability clauses, and draft an email to accounting."'
                 value={analysisIntent}
                 onChange={(e) => setAnalysisIntent(e.target.value)}
                 disabled={isAnalysisSubmitting}
               />
-              <button
-                type="submit"
-                className="button-primary"
-                disabled={!analysisIntent.trim() || isAnalysisSubmitting || analysisJob.status === "processing" || analysisJob.status === "pending"}
-              >
-                {isAnalysisSubmitting ? "Submitting..." : analysisJob.status === "processing" || analysisJob.status === "pending" ? "Processing..." : "Run Analysis"}
-              </button>
+              <div className="absolute bottom-2 right-2">
+                <button
+                  type="submit"
+                  className="button-primary shadow-md"
+                  disabled={!analysisIntent.trim() || isAnalysisSubmitting || analysisJob.status === "processing" || analysisJob.status === "pending"}
+                >
+                  {isAnalysisSubmitting ? "Submitting..." : analysisJob.status === "processing" || analysisJob.status === "pending" ? (
+                    <div className="flex items-center gap-2">
+                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      Processing Pipeline
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                      Run Analysis
+                    </div>
+                  )}
+                </button>
+              </div>
             </div>
           </form>
 
           {(analysisJob.status === "pending" || analysisJob.status === "processing") && (
-            <div className="stack-tight" style={{ marginTop: "0.75rem" }}>
-              <p className="status-meta">
-                ⏳ Analysis job {analysisJob.jobId?.slice(0, 8)}... — <strong>{analysisJob.status}</strong>
-              </p>
-              <p className="status-meta">
-                Running pipeline: Retrieval → Extraction → Neo4j → Reasoning → Tavily → Execution. This may take a moment...
-              </p>
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 mt-4 flex items-start gap-4">
+              <div className="bg-sky-100 text-sky-600 rounded-lg p-2 mt-0.5">
+                <svg className="w-5 h-5 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900 mb-1">Agent Pipeline Running (Job {analysisJob.jobId?.slice(0, 6)})</div>
+                <div className="flex flex-wrap text-sm font-medium text-slate-500 gap-2 items-center">
+                  <span className="text-slate-900">Retrieval</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                  <span className="text-slate-900">Extraction</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                  <span className="text-slate-900">Neo4j</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                  <span className="text-slate-900">Reasoning</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                  <span className="text-slate-900">Tavily</span>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" /></svg>
+                  <span className="text-slate-900">Execution</span>
+                </div>
+              </div>
             </div>
           )}
+
           {analysisJob.status === "failed" && analysisJob.error && (
-            <div className="status-error-text" style={{ marginTop: "0.5rem" }}>{analysisJob.error}</div>
+            <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg flex items-center gap-3 mt-4">
+              <svg className="w-5 h-5 text-red-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <span className="text-sm font-medium">{analysisJob.error}</span>
+            </div>
           )}
-          {analysisJob.status === "completed" && analysisJob.result && renderAnalysisResults()}
+
+          {analysisJob.status === "completed" && analysisJob.result && (
+            <div className="pt-4 border-t border-slate-200 mt-2">
+              <div className="flex items-center gap-2 mb-4">
+                <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                <span className="font-bold text-slate-900">Analysis Complete</span>
+              </div>
+              {renderAnalysisResults()}
+            </div>
+          )}
         </div>
       </section>
     </div>
