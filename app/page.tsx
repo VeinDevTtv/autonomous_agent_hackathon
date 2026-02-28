@@ -309,15 +309,15 @@ export default function HomePage() {
   const renderStatusChip = (status: UploadStatus) => {
     switch (status) {
       case "uploading":
-        return <span className="chip chip-pill">Uploading</span>;
+        return <span className="chip chip-pill">Uploading...</span>;
       case "uploaded":
         return <span className="chip chip-pill">Queued</span>;
       case "ingesting":
-        return <span className="chip chip-warn">Ingesting</span>;
+        return <span className="chip chip-warn animate-pulse">Ingesting</span>;
       case "ready":
-        return <span className="chip chip-success">Ready</span>;
+        return <span className="chip chip-success">Graph Ready</span>;
       case "error":
-        return <span className="chip chip-error">Error</span>;
+        return <span className="chip chip-error">Failed</span>;
       default:
         return <span className="chip chip-pill">Idle</span>;
     }
@@ -331,245 +331,339 @@ export default function HomePage() {
     return (
       <div className="stack" style={{ marginTop: "1rem" }}>
         {/* Extracted Entities badges */}
-        <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
-          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.vendors.length}</strong> Vendors</span>
-          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.invoices.length}</strong> Invoices</span>
-          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.contracts.length}</strong> Contracts</span>
-          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.clauses.length}</strong> Clauses</span>
-          <span className="chip chip-pill" style={{ background: "white", border: "1px solid #e2e8f0" }}><strong>{extraction.amounts.length}</strong> Amounts</span>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+          <div className="surface flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-md border-white/10 group hover:bg-slate-800/60 transition-colors">
+            <span className="text-xl">🏢</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Vendors</span>
+              <span className="text-xl font-extrabold text-white leading-none">{extraction.vendors.length}</span>
+            </div>
+          </div>
+          <div className="surface flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-md border-white/10 group hover:bg-slate-800/60 transition-colors">
+            <span className="text-xl">🧾</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Invoices</span>
+              <span className="text-xl font-extrabold text-white leading-none">{extraction.invoices.length}</span>
+            </div>
+          </div>
+          <div className="surface flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-md border-white/10 group hover:bg-slate-800/60 transition-colors">
+            <span className="text-xl">📄</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contracts</span>
+              <span className="text-xl font-extrabold text-white leading-none">{extraction.contracts.length}</span>
+            </div>
+          </div>
+          <div className="surface flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-md border-white/10 group hover:bg-slate-800/60 transition-colors">
+            <span className="text-xl">⚖️</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Clauses</span>
+              <span className="text-xl font-extrabold text-white leading-none">{extraction.clauses.length}</span>
+            </div>
+          </div>
+          <div className="surface flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-md border-white/10 group hover:bg-slate-800/60 transition-colors">
+            <span className="text-xl">💰</span>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Amounts</span>
+              <span className="text-xl font-extrabold text-white leading-none">{extraction.amounts.length}</span>
+            </div>
+          </div>
         </div>
 
         {/* Financials & Tables Grid */}
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 mt-2">
 
           {/* Vendor Totals Table */}
-          <div className="surface subtle-shadow flex flex-col" style={{ padding: "1.25rem", background: "white" }}>
-            <div className="title" style={{ fontSize: "1rem", marginBottom: "1rem" }}>💰 Vendor Totals</div>
+          <div className="surface flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-white/5 bg-slate-800/40">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <span className="text-sky-400 text-xl font-sans leading-none">�</span> Financial Exposure
+              </h3>
+            </div>
             {reasoning.totalsByVendor.length > 0 ? (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "2px solid #f1f5f9" }}>
-                      <th style={{ textAlign: "left", padding: "0.5rem", color: "#64748b", fontWeight: 500 }}>Vendor</th>
-                      <th style={{ textAlign: "right", padding: "0.5rem", color: "#64748b", fontWeight: 500 }}>Total</th>
-                      <th style={{ textAlign: "right", padding: "0.5rem", color: "#64748b", fontWeight: 500 }}>Invoices</th>
+              <div className="overflow-x-auto p-0">
+                <table className="w-full text-sm text-left font-sans">
+                  <thead className="bg-slate-900/50 text-xs text-slate-400 uppercase tracking-wider shadow-sm">
+                    <tr>
+                      <th className="px-5 py-3 font-semibold">Vendor</th>
+                      <th className="px-5 py-3 font-semibold text-right">Total</th>
+                      <th className="px-5 py-3 font-semibold text-right">Invoices</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-white/5">
                     {reasoning.totalsByVendor.map((vt, idx) => (
-                      <tr key={idx} style={{ borderBottom: "1px solid #f8fafc" }}>
-                        <td style={{ padding: "0.75rem 0.5rem", fontWeight: 500 }}>{vt.vendorName}</td>
-                        <td style={{ padding: "0.75rem 0.5rem", textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+                      <tr key={idx} className="hover:bg-white/5 transition-colors">
+                        <td className="px-5 py-4 font-medium text-slate-200">{vt.vendorName}</td>
+                        <td className="px-5 py-4 font-bold text-right text-emerald-400 font-mono tracking-tight">
                           {vt.currency} {vt.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                         </td>
-                        <td style={{ padding: "0.75rem 0.5rem", textAlign: "right", color: "#64748b" }}>{vt.invoiceCount}</td>
+                        <td className="px-5 py-4 text-right text-slate-400 font-mono">{vt.invoiceCount}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <p className="status-meta">No vendor totals calculated.</p>
+              <div className="p-6 text-center text-slate-400 text-sm italic bg-slate-800/20">No vendor totals calculated.</div>
             )}
           </div>
 
           {/* Flagged Invoices */}
-          <div className="surface subtle-shadow flex flex-col" style={{ padding: "1.25rem", background: "white" }}>
-            <div className="title" style={{ fontSize: "1rem", marginBottom: "1rem" }}>🚩 Flagged Anomalies</div>
-            {reasoning.flaggedInvoices.length > 0 ? (
-              <div className="flex flex-col gap-3">
-                {reasoning.flaggedInvoices.map((fi, idx) => (
-                  <div key={idx} className="p-3 bg-red-50 border border-red-100 rounded-lg">
-                    <div className="flex justify-between items-start mb-1">
-                      <span className="font-semibold text-red-900 text-sm">{fi.vendorName} (Inv #{fi.number})</span>
-                      <span className="font-bold text-red-700 text-sm">${fi.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          <div className="surface flex flex-col overflow-hidden">
+            <div className="p-5 border-b border-white/5 bg-slate-800/40 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <span className="text-amber-400 text-xl font-sans leading-none">⚠️</span> Risk Anomalies
+              </h3>
+              {reasoning.flaggedInvoices.length > 0 && (
+                <span className="bg-red-500/20 text-red-400 text-xs font-bold px-2 py-1 rounded-md border border-red-500/30">
+                  {reasoning.flaggedInvoices.length} Flags
+                </span>
+              )}
+            </div>
+
+            <div className="p-5 flex-1 relative bg-slate-900/20">
+              {reasoning.flaggedInvoices.length > 0 ? (
+                <div className="flex flex-col gap-3">
+                  {reasoning.flaggedInvoices.map((fi, idx) => (
+                    <div key={idx} className="bg-red-950/40 border border-red-900/60 rounded-xl p-4 transition-all hover:bg-red-900/50 hover:shadow-lg hover:shadow-red-900/20">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-bold text-red-200 text-sm whitespace-nowrap overflow-hidden text-ellipsis mr-2">{fi.vendorName} <span className="text-red-400 font-normal">#{fi.number}</span></span>
+                        <span className="font-black text-rose-400 font-mono text-sm shrink-0">${fi.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      <p className="text-sm text-red-300/80 leading-relaxed font-medium">{fi.reason}</p>
                     </div>
-                    <p className="text-xs text-red-800 leading-snug">{fi.reason}</p>
+                  ))}
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center py-8 text-center bg-emerald-950/20 border border-emerald-900/30 rounded-xl">
+                  <div className="w-12 h-12 bg-emerald-500/20 rounded-full flex items-center justify-center mb-3">
+                    <svg className="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
                   </div>
-                ))}
-              </div>
-            ) : (
-              <div className="flex items-center justify-center p-6 bg-green-50 rounded-lg border border-green-100 h-full">
-                <p className="text-sm font-medium text-green-700">✓ No flagged invoices — all amounts are within bounds.</p>
-              </div>
-            )}
+                  <p className="font-semibold text-emerald-400 text-sm">All invoices within normal bounds.</p>
+                  <p className="text-xs text-emerald-500/70 mt-1">No anomalies detected in the current set.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Clause Comparisons */}
-        <div className="surface subtle-shadow" style={{ padding: "1.5rem", background: "white" }}>
-          <div className="title" style={{ fontSize: "1rem", marginBottom: "1rem" }}>
-            ⚖️ Contract Clause Analysis
-          </div>
+        <div className="surface p-6 mt-2 shadow-lg">
+          <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+            <span className="bg-indigo-500/20 p-2 rounded-xl border border-indigo-500/30 text-indigo-400">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>
+            </span>
+            Contract Clause Analysis
+          </h3>
           {reasoning.clauseComparisons.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-2">
               {reasoning.clauseComparisons.map((cc, idx) => (
-                <div key={idx} className="flex flex-col">
-                  <div style={{ fontWeight: 600, marginBottom: "0.75rem", textTransform: "capitalize", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <span style={{ width: "8px", height: "8px", borderRadius: "2px", background: "#0f172a", display: "inline-block" }} />
-                    {cc.clauseType.replace(/_/g, " ")}
+                <div key={idx} className="flex flex-col bg-slate-800/40 rounded-2xl border border-white/5 overflow-hidden transition-all hover:bg-slate-800/60">
+                  <div className="bg-slate-900/60 px-5 py-3 border-b border-white/5">
+                    <h4 className="font-bold text-lg text-indigo-300 capitalize">{cc.clauseType.replace(/_/g, " ")}</h4>
                   </div>
-                  <div className="flex flex-col gap-2 mb-3">
-                    {cc.clauses.map((cl, ci) => (
-                      <div key={ci} style={{ padding: "0.75rem", background: "#f8fafc", borderRadius: "0.5rem", borderLeft: "3px solid #cbd5e1" }}>
-                        <div style={{ fontSize: "0.75rem", fontWeight: 600, color: "#64748b", marginBottom: "0.25rem", textTransform: "uppercase" }}>{cl.contractTitle}</div>
-                        <p style={{ fontSize: "0.825rem", margin: 0, lineHeight: 1.5, color: "#334155" }}>
-                          {cl.text}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100/50 flex-1">
-                    <p style={{ fontSize: "0.85rem", fontStyle: "italic", color: "#334155", lineHeight: 1.5, margin: 0 }}>
-                      {cc.analysis}
-                    </p>
+                  <div className="p-5 flex-1 flex flex-col gap-4">
+                    <div className="flex flex-col gap-3">
+                      {cc.clauses.map((cl, ci) => (
+                        <div key={ci} className="bg-slate-900/40 p-4 rounded-xl border-l-4 border-indigo-500">
+                          <div className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">{cl.contractTitle}</div>
+                          <p className="text-sm text-slate-300 leading-relaxed font-serif italic max-h-32 overflow-y-auto custom-scrollbar pr-2">"{cl.text}"</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-auto pt-4 bg-sky-900/10 border border-sky-500/20 rounded-xl p-4 relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-sky-500"></div>
+                      <p className="text-sm font-medium text-sky-200/90 leading-relaxed">
+                        {cc.analysis}
+                      </p>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="status-meta">No clauses or terms found in the analyzed documents.</p>
+            <p className="text-slate-400 text-center py-6 italic bg-slate-800/20 rounded-xl">No contract clauses found for analysis.</p>
           )}
         </div>
 
-        {/* Action Plan */}
-        <div className="surface subtle-shadow" style={{ padding: "1.5rem", background: "white", borderLeft: "4px solid #0f172a" }}>
-          <div className="title" style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>
-            📋 Recommended Action Plan
-          </div>
-          {reasoning.actionPlan ? (
-            <div style={{ lineHeight: 1.7, fontSize: "0.95rem", color: "#334155" }}>
-              {reasoning.actionPlan.split("\n").map((paragraph, idx) => {
-                const trimmed = paragraph.trim();
-                if (!trimmed) return <br key={idx} />;
-                // Detect section headers (bold **text** pattern)
-                if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
-                  return (
-                    <div key={idx} style={{ fontWeight: 700, marginTop: idx > 0 ? "1rem" : 0, marginBottom: "0.5rem", color: "#0f172a" }}>
-                      {trimmed.replace(/\*\*/g, "")}
-                    </div>
-                  );
-                }
-                // Detect numbered items
-                if (/^\d+\./.test(trimmed)) {
-                  return (
-                    <div key={idx} style={{ paddingLeft: "1rem", marginBottom: "0.35rem" }}>
-                      {trimmed}
-                    </div>
-                  );
-                }
-                return <p key={idx} style={{ margin: "0 0 0.75rem", whiteSpace: "pre-wrap" }}>{trimmed}</p>;
-              })}
-            </div>
-          ) : (
-            <p className="status-meta">No action plan generated.</p>
-          )}
-        </div>
+        {/* Final Plan & Outputs */}
+        <div className="grid gap-6 md:grid-cols-2 mt-2">
 
-        {/* Execution outputs */}
-        {result.execution ? (
-          <div className="grid gap-6 md:grid-cols-2">
-
-            <div className="stack-tight">
-              {result.execution.emailDraft && (
-                <div className="surface subtle-shadow flex flex-col h-full" style={{ padding: "1.5rem", background: "white" }}>
-                  <div className="flex justify-between items-center mb-3">
-                    <div className="title" style={{ fontSize: "1rem" }}>✉️ Email Draft</div>
-                    <button
-                      type="button"
-                      className="text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-3 rounded-md transition-colors"
-                      onClick={() => {
-                        void navigator.clipboard.writeText(result.execution!.emailDraft);
-                      }}
-                    >
-                      Copy
-                    </button>
-                  </div>
-                  <pre style={{ flex: 1, whiteSpace: "pre-wrap", fontFamily: "inherit", fontSize: "0.875rem", margin: 0, padding: "1rem", background: "#f8fafc", borderRadius: "0.5rem", border: "1px solid #e2e8f0", color: "#334155" }}>
-                    {result.execution.emailDraft}
-                  </pre>
-                </div>
-              )}
-            </div>
-
-            <div className="stack-tight">
-              {(result.vendor_risk_enrichment?.length ?? 0) > 0 && (
-                <div className="surface subtle-shadow" style={{ padding: "1.5rem", background: "white" }}>
-                  <div className="title" style={{ fontSize: "1rem", marginBottom: "0.25rem" }}>
-                    🔍 External Vendor Risk Insights
-                  </div>
-                  <p className="text-xs text-slate-500 mb-4 font-medium uppercase tracking-wider">
-                    Sourced via Tavily Web Search
-                  </p>
-                  <div className="flex flex-col gap-4">
-                    {result.vendor_risk_enrichment!.map((v, idx) => (
-                      <div key={idx} style={{ padding: "1rem", background: "#f8fafc", borderRadius: "0.5rem", border: "1px solid #e2e8f0" }}>
-                        <div className="flex justify-between items-center mb-2">
-                          <div style={{ fontWeight: 600 }}>{v.vendor_name}</div>
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${v.risk_level.toLowerCase() === 'high' ? 'bg-red-100 text-red-700' : v.risk_level.toLowerCase() === 'medium' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'}`}>
-                            Risk: {v.risk_level}
-                          </span>
-                        </div>
-                        {v.background_summary && (
-                          <p style={{ margin: "0.5rem 0", fontSize: "0.85rem", lineHeight: 1.5, color: "#475569" }}>{v.background_summary}</p>
-                        )}
-                        {v.risk_reasons?.length > 0 && (
-                          <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.25rem", fontSize: "0.8rem", color: "#64748b" }}>
-                            {v.risk_reasons.slice(0, 5).map((r, i) => (
-                              <li key={i}>{r}</li>
-                            ))}
-                          </ul>
-                        )}
+          {/* Action Plan */}
+          <div className="surface p-6 flex flex-col h-full border-l-4 border-l-sky-500 shadow-xl">
+            <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+              <span className="text-sky-400">📋</span> Action Plan
+            </h3>
+            {reasoning.actionPlan ? (
+              <div className="prose prose-invert prose-slate prose-sm max-w-none text-slate-300">
+                {reasoning.actionPlan.split("\n").map((paragraph, idx) => {
+                  const trimmed = paragraph.trim();
+                  if (!trimmed) return <br key={idx} />;
+                  // Detect section headers (bold **text** pattern)
+                  if (trimmed.startsWith("**") && trimmed.endsWith("**")) {
+                    return (
+                      <h4 key={idx} className="text-sky-300 font-bold mt-4 mb-2">
+                        {trimmed.replace(/\*\*/g, "")}
+                      </h4>
+                    );
+                  }
+                  // Detect numbered items
+                  if (/^\d+\./.test(trimmed)) {
+                    return (
+                      <div key={idx} className="pl-4 mb-2 relative">
+                        <span className="absolute left-0 text-sky-500 font-mono text-xs top-0.5">{trimmed.split('.')[0]}.</span>
+                        {trimmed.substring(trimmed.indexOf('.') + 1).trim()}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
+                    );
+                  }
+                  // Dash items
+                  if (trimmed.startsWith("- ")) {
+                    return (
+                      <div key={idx} className="pl-4 mb-2 relative">
+                        <span className="absolute left-0 text-sky-500">•</span>
+                        {trimmed.substring(2)}
+                      </div>
+                    );
+                  }
+                  return <p key={idx} className="mb-3 leading-relaxed">{trimmed}</p>;
+                })}
+              </div>
+            ) : (
+              <p className="text-slate-400 text-sm italic bg-slate-800/20 p-4 rounded-xl text-center flex-1 flex items-center justify-center">No action plan generated.</p>
+            )}
+          </div>
 
-            {/* CSV Download Card */}
-            {result.execution.csvUrl && (
-              <div className="surface subtle-shadow flex items-center justify-between col-span-full" style={{ padding: "1.25rem 1.5rem", background: "white" }}>
-                <div className="flex items-center gap-3">
-                  <div className="bg-emerald-100 text-emerald-700 p-2 rounded-lg">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-900">Download Data Export</div>
-                    <div className="text-xs text-slate-500">CSV format of your parsed invoices and vendors</div>
-                  </div>
+          {/* Email Draft Area */}
+          <div className="stack-tight h-full">
+            {result.execution?.emailDraft && (
+              <div className="surface p-0 flex flex-col h-full overflow-hidden shadow-xl border border-white/5">
+                <div className="bg-slate-800/40 p-4 border-b border-white/5 flex justify-between items-center">
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    Communication Draft
+                  </h3>
+                  <button
+                    type="button"
+                    className="text-xs font-bold bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 py-1.5 px-3 rounded-lg transition-colors border border-indigo-500/30 flex items-center gap-1.5"
+                    onClick={() => void navigator.clipboard.writeText(result.execution!.emailDraft)}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" /></svg>
+                    Copy HTML
+                  </button>
                 </div>
-                <a
-                  href={result.execution.csvUrl}
-                  className="button-primary"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Export CSV
-                </a>
+                <div className="p-5 flex-1 bg-slate-900/60 font-mono text-sm text-slate-300 whitespace-pre-wrap overflow-y-auto w-full custom-scrollbar leading-relaxed">
+                  {result.execution.emailDraft}
+                </div>
               </div>
             )}
           </div>
-        ) : null}
+        </div>
+
+        {/* Enrichment Data */}
+        {(result.vendor_risk_enrichment?.length ?? 0) > 0 && (
+          <div className="surface p-6 overflow-hidden relative border-t-4 border-t-amber-500/40 shadow-xl mt-2">
+            <div className="absolute top-0 right-0 p-6 opacity-5 pointer-events-none">
+              <svg className="w-48 h-48 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" /></svg>
+            </div>
+            <div className="relative z-10">
+              <h3 className="text-2xl font-bold text-white flex items-center gap-3 mb-1">
+                External Risk Intelligence
+              </h3>
+              <p className="text-sm font-semibold text-amber-500/80 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                Tavily Deep Search
+              </p>
+
+              <div className="grid gap-5 lg:grid-cols-2">
+                {result.vendor_risk_enrichment!.map((v, idx) => (
+                  <div key={idx} className="bg-slate-900/50 backdrop-blur-md rounded-2xl p-5 border border-white/10 shadow-lg hover:border-amber-500/30 transition-colors">
+                    <div className="flex justify-between items-start mb-4">
+                      <h4 className="text-lg font-bold text-white">{v.vendor_name}</h4>
+                      <span className={`px-3 py-1 text-xs font-black uppercase tracking-wider rounded-lg border ${v.risk_level.toLowerCase() === 'high' ? 'bg-red-500/20 text-red-400 border-red-500/30' : v.risk_level.toLowerCase() === 'medium' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'}`}>
+                        {v.risk_level} Risk
+                      </span>
+                    </div>
+                    {v.background_summary && (
+                      <p className="text-sm text-slate-300 leading-relaxed mb-4">{v.background_summary}</p>
+                    )}
+                    {v.risk_reasons?.length > 0 && (
+                      <div className="space-y-2 bg-slate-800/50 p-3 rounded-xl border border-white/5">
+                        <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Key Factors</h5>
+                        <ul className="space-y-1.5">
+                          {v.risk_reasons.slice(0, 5).map((r, i) => (
+                            <li key={i} className="text-sm text-slate-400 flex items-start gap-2">
+                              <span className="text-amber-500/70 mt-0.5 shrink-0">•</span>
+                              <span>{r}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CSV Download Card */}
+        {result.execution?.csvUrl && (
+          <div className="surface p-6 flex items-center justify-between bg-gradient-to-r from-emerald-900/20 to-sky-900/20 mt-4 border border-emerald-500/20 shadow-xl rounded-2xl">
+            <div className="flex items-center gap-5">
+              <div className="bg-emerald-500/20 text-emerald-400 p-3.5 rounded-2xl shadow-inner border border-emerald-500/30">
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+              </div>
+              <div>
+                <div className="font-bold text-white text-lg tracking-tight">Structured Data Export</div>
+                <div className="text-sm text-emerald-300/80 font-medium">Download the extracted graph entities as a CSV</div>
+              </div>
+            </div>
+            <a
+              href={result.execution.csvUrl}
+              className="button-primary !bg-emerald-500 hover:!bg-emerald-400 !text-slate-900 !border-emerald-400 shadow-emerald-500/30 font-bold px-6"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <span className="flex items-center gap-2">
+                Download CSV
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+              </span>
+            </a>
+          </div>
+        )}
       </div>
     );
   };
 
 
   return (
-    <div className="stack max-w-4xl mx-auto w-full">
-      <section className="card">
-        <div className="stack" style={{ padding: "2rem" }}>
-          <div className="stack-tight">
-            <div className="title text-2xl">Document Library</div>
-            <p className="muted text-base">
-              Upload your invoices and contracts. They will be securely processed and ingested into the knowledge graph instantly.
+    <div className="stack w-full max-w-5xl mx-auto space-y-12">
+      {/* Introduction / Header Area */}
+      <div className="text-center py-8 space-y-4">
+        <h2 className="text-4xl md:text-5xl font-extrabold tracking-tight text-white mb-2 pb-2">
+          <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-300 to-indigo-400 drop-shadow-sm">Intelligent Document Analysis</span>
+        </h2>
+        <p className="text-lg text-slate-300 max-w-2xl mx-auto font-light leading-relaxed">
+          Upload your contracts and invoices. Our autonomous agents will ingest, parse, and reason over your data instantly.
+        </p>
+      </div>
+
+      <section className="card group">
+        <div className="stack" style={{ padding: "2.5rem" }}>
+          <div className="stack-tight border-b border-white/10 pb-5">
+            <div className="title flex items-center gap-3">
+              <div className="bg-indigo-500/20 p-2.5 rounded-xl border border-indigo-500/30 shadow-inner group-hover:bg-indigo-500/30 transition-colors">
+                <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+              </div>
+              Knowledge Ingestion
+            </div>
+            <p className="muted text-base mt-2">
+              Drop your files below to build the knowledge graph automatically.
             </p>
           </div>
 
-          <form className="stack" onSubmit={handleSubmit}>
-            <div className="stack-tight file-input">
-              <label className="file-dropzone shadow-sm" htmlFor="file-input">
+          <form className="stack mt-4" onSubmit={handleSubmit}>
+            <div className="stack-tight file-input relative">
+              <label className="file-dropzone shadow-2xl" htmlFor="file-input">
                 <input
                   id="file-input"
                   key={fileInputKey}
@@ -578,12 +672,12 @@ export default function HomePage() {
                   accept=".pdf,image/*"
                   onChange={handleFilesChange}
                 />
-                <div className="stack-tight flex flex-col items-center">
-                  <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm mb-2 border border-slate-100">
-                    <svg className="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                <div className="stack-tight flex flex-col items-center relative z-10 transition-transform duration-300 transform">
+                  <div className="w-16 h-16 bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl flex items-center justify-center shadow-xl mb-4 border border-white/10 group-hover:scale-110 transition-transform duration-300">
+                    <svg className="w-8 h-8 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
                   </div>
-                  <div className="status-name text-lg font-medium">
-                    Drop files here or click to browse
+                  <div className="status-name text-xl font-semibold text-white tracking-wide">
+                    Drag and drop your files here
                   </div>
                   <p className="status-meta text-center max-w-sm">
                     Support for PDFs and images (PNG, JPEG).
@@ -622,33 +716,36 @@ export default function HomePage() {
 
           {/* Upload Status List */}
           {documents.length > 0 && (
-            <div className="mt-8">
-              <div className="text-sm font-semibold text-slate-900 mb-3 tracking-wide uppercase">Ingestion Queue</div>
-              <div className="status-list">
+            <div className="mt-10">
+              <div className="text-xs font-bold text-slate-400 mb-4 tracking-widest uppercase flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                Active Queue
+              </div>
+              <div className="status-list space-y-3">
                 {documents.map((doc) => (
-                  <div key={doc.id} className="status-item">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-md bg-slate-100 flex items-center justify-center border border-slate-200">
-                        <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                  <div key={doc.id} className="status-item group">
+                    <div className="flex items-center gap-4">
+                      <div className="w-10 h-10 rounded-xl bg-slate-800/50 flex items-center justify-center border border-white/5 group-hover:bg-slate-700/50 transition-colors">
+                        <svg className="w-5 h-5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                       </div>
-                      <div className="stack-tight gap-0.5">
-                        <div className="status-name text-sm">{doc.filename}</div>
+                      <div className="stack-tight gap-1">
+                        <div className="status-name text-base group-hover:text-indigo-300 transition-colors">{doc.filename}</div>
                         <div className="status-meta text-xs">
                           {doc.createdAt
-                            ? `Created at ${new Date(doc.createdAt).toLocaleTimeString()}`
+                            ? `Ingested at ${new Date(doc.createdAt).toLocaleTimeString()}`
                             : "Queued"}
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    <div className="flex items-center gap-3">
                       {doc.errorMessage && (
-                        <div className="status-error-text text-xs mr-2">
+                        <div className="status-error-text text-xs">
                           {doc.errorMessage}
                         </div>
                       )}
                       {doc.status === "error" && (
                         <button
-                          className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold py-1 px-3 rounded-md transition-colors box-shadow-sm"
+                          className="bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-400 text-xs font-bold py-1.5 px-4 rounded-lg transition-colors shadow-sm"
                           onClick={() => handleRetry(doc.id)}
                         >
                           Retry
@@ -666,42 +763,47 @@ export default function HomePage() {
 
       {/* Analysis Section */}
       <section className="card pb-8">
-        <div className="stack" style={{ padding: "2rem" }}>
-          <div className="stack-tight">
-            <div className="title text-2xl">Analysis Studio</div>
-            <p className="muted text-base">
-              Query your documents. Our agent will extract entities, reason over the knowledge graph, and generate insights based on your prompt.
+        <div className="stack" style={{ padding: "2.5rem" }}>
+          <div className="stack-tight mb-4 border-b border-white/10 pb-4">
+            <div className="title flex items-center gap-3 text-3xl">
+              <div className="bg-sky-500/20 p-2 rounded-lg border border-sky-500/30">
+                <svg className="w-7 h-7 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              </div>
+              Analysis Orchestrator
+            </div>
+            <p className="muted text-base mt-2">
+              Command the reasoning engine. Combine entities, compute math, compare liabilities, and draft communications autonomously.
             </p>
           </div>
 
           <form className="stack" onSubmit={handleAnalysisSubmit}>
-            <div className="stack-tight relative">
-              <label className="text-sm font-semibold text-slate-900 tracking-wide uppercase" htmlFor="analysis-intent-input">
+            <div className="stack-tight relative mt-2 group">
+              <label className="text-xs font-bold text-slate-400 tracking-widest uppercase mb-1 drop-shadow-md" htmlFor="analysis-intent-input">
                 Prompt Intent
               </label>
               <textarea
                 id="analysis-intent-input"
-                className="input min-h-[120px] resize-none pb-14 shadow-sm"
-                placeholder='e.g. "Summarize vendor totals, flag invoices over $5,000, compare contract liability clauses, and draft an email to accounting."'
+                className="input min-h-[160px] resize-none pb-16 text-lg leading-relaxed shadow-inner"
+                placeholder='Evaluate vendor risks, calculate total exposure for ACME Corp, compare limitation of liability causes across all master agreements, and draft an executive brief.'
                 value={analysisIntent}
                 onChange={(e) => setAnalysisIntent(e.target.value)}
                 disabled={isAnalysisSubmitting}
               />
-              <div className="absolute bottom-2 right-2">
+              <div className="absolute bottom-4 right-4">
                 <button
                   type="submit"
-                  className="button-primary shadow-md"
+                  className="button-primary shadow-xl opacity-90 hover:opacity-100"
                   disabled={!analysisIntent.trim() || isAnalysisSubmitting || analysisJob.status === "processing" || analysisJob.status === "pending"}
                 >
-                  {isAnalysisSubmitting ? "Submitting..." : analysisJob.status === "processing" || analysisJob.status === "pending" ? (
+                  {isAnalysisSubmitting ? "Orchestrating..." : analysisJob.status === "processing" || analysisJob.status === "pending" ? (
                     <div className="flex items-center gap-2">
-                      <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                      Processing Pipeline
+                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                      Pipeline Active
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                      Run Analysis
+                    <div className="flex items-center gap-2 font-bold text-base">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
+                      Execute Workflow
                     </div>
                   )}
                 </button>
